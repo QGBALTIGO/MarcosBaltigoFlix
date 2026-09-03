@@ -1,0 +1,22 @@
+{
+  "name": "BaltigoFlix",
+  "short_name": "BaltigoFlix",
+  "description": "Planos flexíveis e uma experiência de entretenimento para diferentes dispositivos.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070817",
+  "theme_color": "#070817",
+  "categories": ["entertainment", "lifestyle"],
+  "icons": [
+    {
+      "src": "assets/images/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
