@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="468" height="116" viewBox="0 0 468 116" role="img" aria-labelledby="title desc">
+  <title id="title">BaltigoFlix</title>
+  <desc id="desc">Símbolo de reprodução em gradiente ao lado do nome BaltigoFlix.</desc>
+  <defs>
+    <linearGradient id="g" x1="8" y1="8" x2="100" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20D9FF"/>
+      <stop offset=".5" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+    <linearGradient id="t" x1="132" y1="25" x2="432" y2="94" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D8DAE9"/>
+    </linearGradient>
+    <filter id="s" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="9" stdDeviation="9" flood-color="#4930C0" flood-opacity=".32"/>
+    </filter>
+  </defs>
+  <g filter="url(#s)">
+    <path d="M57.8 7.5c16.8 0 31.9 7.1 42.5 18.4 9.7 10.3 15.7 24.2 15.7 39.5 0 31.9-25.8 57.8-57.7 57.8C26.3 123.2.5 97.3.5 65.4.5 33.5 26 7.5 57.8 7.5Z" fill="url(#g)" transform="scale(.87) translate(8 5)"/>
+    <path d="M49 35.5c0-5.2 5.7-8.4 10.1-5.7l34.7 21.5c4.2 2.6 4.2 8.7 0 11.3L59.1 84.1C54.7 86.8 49 83.6 49 78.4V35.5Z" fill="#fff"/>
+    <path d="M26 28c8-8.8 19.5-14.3 32.2-14.3" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <text x="132" y="79" fill="url(#t)" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="61" font-weight="820" letter-spacing="-3.2">Baltigo</text>
+  <text x="337" y="79" fill="#8D75FF" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="61" font-weight="820" letter-spacing="-3.2">Flix</text>
+  <circle cx="444" cy="31" r="5" fill="#20D9FF"/>
+</svg>
