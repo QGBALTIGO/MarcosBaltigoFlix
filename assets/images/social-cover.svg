@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">BaltigoFlix — seu entretenimento, do seu jeito</title>
+  <desc id="desc">Capa em tons escuros, roxo e azul com interface abstrata de entretenimento.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#070817"/>
+      <stop offset=".52" stop-color="#101331"/>
+      <stop offset="1" stop-color="#071F31"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="0" cy="0" r="1" gradientTransform="translate(186 38) rotate(64) scale(430 500)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C5CFF" stop-opacity=".43"/>
+      <stop offset="1" stop-color="#7C5CFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0" cy="0" r="1" gradientTransform="translate(1030 222) rotate(145) scale(430 400)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20D9FF" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#20D9FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="62" y1="65" x2="173" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20D9FF"/>
+      <stop offset=".52" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+    <linearGradient id="card1" x1="764" y1="195" x2="1050" y2="460" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7657F4"/>
+      <stop offset=".55" stop-color="#2B265F"/>
+      <stop offset="1" stop-color="#E06291"/>
+    </linearGradient>
+    <linearGradient id="card2" x1="930" y1="232" x2="1120" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1FD6E7"/>
+      <stop offset="1" stop-color="#204B91"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="25" stdDeviation="25" flood-color="#000" flood-opacity=".4"/>
+    </filter>
+    <pattern id="grid" width="54" height="54" patternUnits="userSpaceOnUse">
+      <path d="M54 0H0V54" fill="none" stroke="#fff" stroke-opacity=".035"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow1)"/>
+  <rect width="1200" height="630" fill="url(#glow2)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <circle cx="1140" cy="80" r="190" fill="none" stroke="#fff" stroke-opacity=".07"/>
+  <circle cx="1140" cy="80" r="128" fill="none" stroke="#7C5CFF" stroke-opacity=".13" stroke-dasharray="8 12"/>
+
+  <g transform="translate(68 66)">
+    <circle cx="54" cy="54" r="54" fill="url(#mark)"/>
+    <path d="M45 31c0-5.1 5.6-8.3 10-5.6l37 23c4.2 2.6 4.2 8.6 0 11.2l-37 23C50.6 85.3 45 82.1 45 77V31Z" fill="#fff"/>
+    <path d="M21 25C30 15 41 10 54 10" fill="none" stroke="#fff" stroke-opacity=".62" stroke-width="4.5" stroke-linecap="round"/>
+    <text x="129" y="72" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="62" font-weight="820" letter-spacing="-3.5">Baltigo</text>
+    <text x="339" y="72" fill="#917AFF" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="62" font-weight="820" letter-spacing="-3.5">Flix</text>
+  </g>
+
+  <g transform="translate(74 248)">
+    <text x="0" y="0" fill="#C4B8FF" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="800" letter-spacing="2.8">ENTRETENIMENTO EM UMA ÚNICA EXPERIÊNCIA</text>
+    <text x="0" y="76" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="64" font-weight="820" letter-spacing="-3.4">Sua tela. Seu tempo.</text>
+    <text x="0" y="148" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="64" font-weight="820" letter-spacing="-3.4">Seu entretenimento.</text>
+    <text x="0" y="206" fill="#A9AEC7" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="24">Planos flexíveis e ativação orientada.</text>
+  </g>
+
+  <g filter="url(#shadow)" transform="translate(735 136) rotate(-5 210 190)">
+    <rect width="400" height="355" rx="30" fill="#14172F" stroke="#fff" stroke-opacity=".13"/>
+    <rect x="22" y="22" width="356" height="196" rx="22" fill="url(#card1)"/>
+    <circle cx="328" cy="67" r="68" fill="#20D9FF" fill-opacity=".2"/>
+    <path d="M262 74c0-10 11-16 19-11l66 41c8 5 8 16 0 21l-66 41c-8 5-19-1-19-11V74Z" fill="#fff" fill-opacity=".93"/>
+    <rect x="22" y="242" width="78" height="90" rx="12" fill="#7456ED"/>
+    <rect x="113" y="242" width="78" height="90" rx="12" fill="#1DAFC4"/>
+    <rect x="204" y="242" width="78" height="90" rx="12" fill="#D48343"/>
+    <rect x="295" y="242" width="78" height="90" rx="12" fill="#3C5AC4"/>
+  </g>
+
+  <g filter="url(#shadow)" transform="translate(983 260) rotate(8 86 145)">
+    <rect width="172" height="290" rx="28" fill="#171A34" stroke="#fff" stroke-opacity=".15"/>
+    <rect x="15" y="32" width="142" height="109" rx="16" fill="url(#card2)"/>
+    <circle cx="86" cy="86" r="25" fill="#fff" fill-opacity=".93"/>
+    <path d="m80 73 20 13-20 13V73Z" fill="#6340F5"/>
+    <rect x="15" y="157" width="65" height="102" rx="10" fill="#3A326C"/>
+    <rect x="92" y="157" width="65" height="102" rx="10" fill="#245267"/>
+    <rect x="64" y="12" width="44" height="6" rx="3" fill="#070817"/>
+  </g>
+</svg>
