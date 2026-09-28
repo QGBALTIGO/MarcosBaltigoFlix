@@ -41,6 +41,8 @@
 <select id="office"><option value="presidente">Presidente</option><option value="governador">Governador</option><option value="senador">Senador</option></select>
 <select id="pollScope"></select>
 <select id="institute"><option value="datafolha">Datafolha</option><option value="quaest">Quaest</option><option value="">Automático</option></select>
+<select id="question"><option value="">Pergunta padrão</option></select>
+<select id="stratum"><option value="">Total da amostra</option></select>
 <button id="pollRefresh">Consultar</button>
 </div>
 <div id="pollMeta" class="meta"></div>
@@ -54,6 +56,7 @@ var states={br:"Brasil",ac:"Acre",al:"Alagoas",ap:"Amapá",am:"Amazonas",ba:"Bah
 var fmt=function(n){return new Intl.NumberFormat("pt-BR").format(Number(n||0))};
 var pct=function(n){return Number(n||0).toLocaleString("pt-BR",{minimumFractionDigits:0,maximumFractionDigits:2})+"%"};
 var esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})};
+var lastPoll=null;
 function fillSelect(el,includeBR){el.innerHTML="";Object.keys(states).forEach(function(k){if(k==="br"&&!includeBR)return;var o=document.createElement("option");o.value=k;o.textContent=states[k];el.appendChild(o)})}
 fillSelect(document.querySelector("#tseScope"),true);fillSelect(document.querySelector("#pollScope"),true);document.querySelector("#pollScope").value="br";
 
@@ -70,19 +73,44 @@ document.querySelector("#tseCandidates").innerHTML=(d.candidates||[]).map(functi
 
 function adjustPollScope(){var office=document.querySelector("#office").value;var s=document.querySelector("#pollScope");var inst=document.querySelector("#institute");var current=s.value;if(office==="presidente"){fillSelect(s,true);s.value=states[current]?current:"br";if(!inst.value)inst.value="datafolha"}else{fillSelect(s,false);s.value=current&&current!=="br"?current:"ms";inst.value=""}}
 
-async function loadPoll(){
-var office=document.querySelector("#office").value;var scope=document.querySelector("#pollScope").value;var inst=document.querySelector("#institute").value;var q="/api/g1/poll?office="+encodeURIComponent(office)+"&scope="+encodeURIComponent(scope)+"&round=1";if(inst)q+="&institute="+encodeURIComponent(inst);
-document.querySelector("#pollChoices").innerHTML='<div class="panel">Consultando o G1…</div>';
-try{
-var r=await fetch(q,{cache:"no-store"});var d=await r.json();if(!r.ok)throw new Error(d.detail||"Pesquisa indisponível");
-document.querySelector("#clock").textContent="Rodada "+(d.latest_date||"—");document.querySelector("#g1Source").href=d.source_url||"#";
-var meta=document.querySelector("#pollMeta");meta.innerHTML='<span class="pill">'+esc(states[d.scope]||d.scope.toUpperCase())+'</span><span class="pill">'+esc(d.institute)+'</span><span class="pill">'+esc(d.question)+'</span><span class="pill">'+esc(d.latest_date||"")+'</span>';
-document.querySelector("#pollChoices").innerHTML=(d.choices||[]).map(function(c){var h=(c.history||[]).slice().sort(function(a,b){return a.date.localeCompare(b.date)});var delta="";if(h.length>1){var x=Number(h[h.length-1].percentage)-Number(h[h.length-2].percentage);delta=Math.abs(x)<0.05?"sem variação":(x>0?"+":"")+x.toFixed(1).replace(".",",")+" p.p. vs. rodada anterior"}return '<article class="candidate"><div class="row"><div class="name">'+esc(c.name)+(c.party?' <span class="muted">· '+esc(c.party)+'</span>':"")+'</div><div class="pct">'+pct(c.percentage)+'</div></div>'+(delta?'<div class="muted">'+esc(delta)+'</div>':"")+'</article>'}).join("")||'<div class="panel">Sem dados para esta combinação.</div>';
-var info=[];if(d.sample_size)info.push(fmt(d.sample_size)+" entrevistas");if(d.margin_error_points!=null)info.push("margem ±"+d.margin_error_points+" p.p.");if(d.field_period)info.push("campo: "+d.field_period);if((d.registrations||[]).length)info.push("registro(s): "+d.registrations.join(", "));var m=document.querySelector("#methodology");m.style.display="block";m.innerHTML='<strong>Metodologia</strong><div class="muted">'+esc(info.join(" • "))+'</div>'+(d.methodology?'<div style="margin-top:8px">'+esc(d.methodology)+'</div>':"");
-}catch(e){document.querySelector("#pollMeta").innerHTML="";document.querySelector("#pollChoices").innerHTML='<div class="panel error">Não há pesquisa disponível para essa seleção ou a fonte não respondeu: '+esc(e.message)+'</div>';document.querySelector("#methodology").style.display="none"}
+function fillPollFilters(d){
+var q=document.querySelector("#question"),current=q.value;q.innerHTML="";
+(d.available_questions||[]).forEach(function(item){var o=document.createElement("option");o.value=item.code;o.textContent=item.label;q.appendChild(o)});
+if(!q.options.length){var o=document.createElement("option");o.value=d.question_code||"";o.textContent=d.question||"Pergunta padrão";q.appendChild(o)}
+q.value=(d.available_questions||[]).some(function(x){return x.code===current})?current:(d.question_code||q.options[0].value);
+
+var s=document.querySelector("#stratum"),selected=s.value;s.innerHTML='<option value="">Total da amostra</option>';
+var groups={};(d.strata||[]).forEach(function(item){var key=item.group||"Outros";if(!groups[key])groups[key]=[];groups[key].push(item)});
+var order=(d.strata_order||[]).map(function(x){return String(x).toLowerCase()});
+Object.keys(groups).sort(function(a,b){var ai=order.indexOf(a.toLowerCase()),bi=order.indexOf(b.toLowerCase());if(ai<0)ai=999;if(bi<0)bi=999;return ai-bi||a.localeCompare(b)}).forEach(function(group){
+var og=document.createElement("optgroup");og.label=group;groups[group].forEach(function(item){var o=document.createElement("option");o.value=(item.group_slug||group)+"|"+item.label;o.textContent=item.label;og.appendChild(o)});s.appendChild(og)});
+if(Array.from(s.options).some(function(o){return o.value===selected}))s.value=selected;
 }
 
-document.querySelector("#office").addEventListener("change",function(){adjustPollScope();loadPoll()});document.querySelector("#pollScope").addEventListener("change",loadPoll);document.querySelector("#institute").addEventListener("change",loadPoll);document.querySelector("#pollRefresh").addEventListener("click",loadPoll);document.querySelector("#tseScope").addEventListener("change",loadTSE);document.querySelector("#tseRefresh").addEventListener("click",loadTSE);
+function renderPoll(){
+var d=lastPoll;if(!d)return;var selected=document.querySelector("#stratum").value;var stratum=null;
+if(selected){stratum=(d.strata||[]).find(function(item){return ((item.group_slug||item.group)+"|"+item.label)===selected})||null}
+var choices=stratum?stratum.choices:(d.choices||[]);var margin=stratum?stratum.margin_error_points:d.margin_error_points;
+document.querySelector("#clock").textContent="Rodada "+(d.latest_date||"—");document.querySelector("#g1Source").href=d.source_url||"#";
+var meta=document.querySelector("#pollMeta");meta.innerHTML='<span class="pill">'+esc(states[d.scope]||d.scope.toUpperCase())+'</span><span class="pill">'+esc(d.institute)+'</span><span class="pill">'+esc(d.question)+'</span>'+(stratum?'<span class="pill">'+esc(stratum.group)+": "+esc(stratum.label)+'</span>':"")+'<span class="pill">'+esc(d.latest_date||"")+'</span>';
+document.querySelector("#pollChoices").innerHTML=(choices||[]).map(function(c){var h=(c.history||[]).slice().sort(function(a,b){return a.date.localeCompare(b.date)});var delta="";if(h.length>1){var x=Number(h[h.length-1].percentage)-Number(h[h.length-2].percentage);delta=Math.abs(x)<0.05?"sem variação":(x>0?"+":"")+x.toFixed(1).replace(".",",")+" p.p. vs. rodada anterior"}return '<article class="candidate"><div class="row"><div class="name">'+esc(c.name)+(c.party?' <span class="muted">· '+esc(c.party)+'</span>':"")+'</div><div class="pct">'+pct(c.percentage)+'</div></div>'+(delta?'<div class="muted">'+esc(delta)+'</div>':"")+'</article>'}).join("")||'<div class="panel">Sem dados para esta combinação.</div>';
+var info=[];if(d.sample_size)info.push(fmt(d.sample_size)+" entrevistas");if(margin!=null)info.push("margem ±"+margin+" p.p."+(stratum?" neste recorte":""));if(d.field_period)info.push("campo: "+d.field_period);if((d.registrations||[]).length)info.push("registro(s): "+d.registrations.join(", "));var m=document.querySelector("#methodology");m.style.display="block";m.innerHTML='<strong>Metodologia</strong><div class="muted">'+esc(info.join(" • "))+'</div>'+(d.methodology?'<div style="margin-top:8px">'+esc(d.methodology)+'</div>':"");
+}
+
+async function loadPoll(resetQuestion){
+var office=document.querySelector("#office").value;var scope=document.querySelector("#pollScope").value;var inst=document.querySelector("#institute").value;var question=resetQuestion?"":document.querySelector("#question").value;var q="/api/g1/poll?office="+encodeURIComponent(office)+"&scope="+encodeURIComponent(scope)+"&round=1";if(inst)q+="&institute="+encodeURIComponent(inst);if(question)q+="&question="+encodeURIComponent(question);
+document.querySelector("#pollChoices").innerHTML='<div class="panel">Consultando o G1…</div>';
+try{
+var r=await fetch(q,{cache:"no-store"});var d=await r.json();if(!r.ok)throw new Error(d.detail||"Pesquisa indisponível");lastPoll=d;fillPollFilters(d);renderPoll();
+}catch(e){lastPoll=null;document.querySelector("#pollMeta").innerHTML="";document.querySelector("#pollChoices").innerHTML='<div class="panel error">Não há pesquisa disponível para essa seleção ou a fonte não respondeu: '+esc(e.message)+'</div>';document.querySelector("#methodology").style.display="none"}
+}
+
+document.querySelector("#office").addEventListener("change",function(){adjustPollScope();document.querySelector("#question").value="";document.querySelector("#stratum").value="";loadPoll(true)});
+document.querySelector("#pollScope").addEventListener("change",function(){document.querySelector("#question").value="";document.querySelector("#stratum").value="";loadPoll(true)});
+document.querySelector("#institute").addEventListener("change",function(){document.querySelector("#question").value="";document.querySelector("#stratum").value="";loadPoll(true)});
+document.querySelector("#question").addEventListener("change",function(){document.querySelector("#stratum").value="";loadPoll(false)});
+document.querySelector("#stratum").addEventListener("change",renderPoll);
+document.querySelector("#pollRefresh").addEventListener("click",function(){loadPoll(false)});document.querySelector("#tseScope").addEventListener("change",loadTSE);document.querySelector("#tseRefresh").addEventListener("click",loadTSE);
 adjustPollScope();loadTSE();setInterval(function(){if(document.querySelector("#tse").classList.contains("active"))loadTSE()},20000);
 </script>
 </body>
