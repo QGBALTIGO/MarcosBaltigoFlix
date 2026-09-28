@@ -42,6 +42,15 @@ class Storage:
                 )
                 """
             )
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS bot_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
             # Migração idempotente para instalações criadas por versões anteriores.
             for sql in (
                 "ALTER TABLE live_messages ADD COLUMN alerts INTEGER NOT NULL DEFAULT 1",
@@ -118,3 +127,23 @@ class Storage:
                 )
                 for r in rows
             ]
+
+    async def get_state(self, key: str) -> str | None:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute("SELECT value FROM bot_state WHERE key=?", (key,))
+            row = await cursor.fetchone()
+            return str(row[0]) if row else None
+
+    async def set_state(self, key: str, value: str) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT INTO bot_state(key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value=excluded.value,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (key, value),
+            )
+            await db.commit()
