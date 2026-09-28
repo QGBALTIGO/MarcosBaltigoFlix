@@ -45,6 +45,7 @@ async def _g1_startup_probe() -> None:
             "percent_contexts": data.get("percent_contexts", [])[:30],
             "interesting_responses": data.get("interesting_responses", [])[:60],
             "scripts": data.get("scripts", [])[-20:],
+            "api_payloads": data.get("api_payloads", [])[:3],
         }
         logging.getLogger(__name__).warning("G1_PROBE %s", json.dumps(compact, ensure_ascii=False))
     except Exception:
