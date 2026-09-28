@@ -52,6 +52,7 @@ class Settings:
     port: int
     webapp_url: str
     channel_id: str
+    required_channel: str
 
     @property
     def is_simulation(self) -> bool:
@@ -104,4 +105,5 @@ def get_settings() -> Settings:
         port=_int("PORT", 8000),
         webapp_url=os.getenv("WEBAPP_URL", "").strip(),
         channel_id=os.getenv("CHANNEL_ID", "").strip(),
+        required_channel=os.getenv("REQUIRED_CHANNEL", os.getenv("CHANNEL_ID", "")).strip(),
     )

@@ -12,6 +12,7 @@ O projeto não calcula probabilidades, não projeta vencedor e não altera dados
 - `/parar`: interrompe atualização naquele chat.
 - `/alertas on|off`: controla notificações nos marcos 10%, 25%, 50%, 75%, 90%, 95%, 99% e 100%.
 - `/publicar [@canal]`: publica em canal/grupo e mantém a mensagem atualizada (bot precisa ser administrador). Se `CHANNEL_ID` estiver configurado, `/publicar` sem argumento usa esse canal.
+- Canal obrigatório: quando `REQUIRED_CHANNEL` está definido, usuários precisam participar do canal para usar as consultas e o acompanhamento. Administradores em `ADMIN_IDS` não ficam bloqueados por essa verificação.
 - `/status` e `/fonte`.
 - Painel web responsivo em `/`.
 - API `GET /api/result?scope=br`.
@@ -115,7 +116,8 @@ Para restringir `/publicar`, use:
 
 ```env
 ADMIN_IDS=123456789,987654321
-CHANNEL_ID=@SeuCanal
+CHANNEL_ID=@ResultadoEleicoes
+REQUIRED_CHANNEL=@ResultadoEleicoes
 ```
 
 ## Fonte técnica

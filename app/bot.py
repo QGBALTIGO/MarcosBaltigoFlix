@@ -41,6 +41,46 @@ class ElectionBot:
         user_id = update.effective_user.id if update.effective_user else 0
         return user_id in self.settings.admin_ids
 
+    def _required_channel_url(self) -> str:
+        channel = self.settings.required_channel.strip()
+        if channel.startswith("@"):
+            return f"https://t.me/{channel[1:]}"
+        return "https://t.me/ResultadoEleicoes"
+
+    async def _is_required_channel_member(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        if not self.settings.required_channel or self._is_configured_admin(update):
+            return True
+        user = update.effective_user
+        if not user:
+            return True
+        try:
+            member = await context.bot.get_chat_member(self.settings.required_channel, user.id)
+            status = str(getattr(member, "status", "")).lower()
+            if status in {"creator", "administrator", "member"}:
+                return True
+            if status == "restricted" and bool(getattr(member, "is_member", False)):
+                return True
+            return False
+        except TelegramError as exc:
+            log.warning("Não foi possível verificar inscrição no canal obrigatório: %s", exc)
+            return False
+
+    async def _guard_required_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        if await self._is_required_channel_member(update, context):
+            return True
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Entrar no canal oficial", url=self._required_channel_url())],
+            [InlineKeyboardButton("Verificar inscrição", callback_data="verify_subscription")],
+        ])
+        text = (
+            "<b>Canal oficial obrigatório</b>\n\n"
+            "Para usar o bot, participe do canal <b>@ResultadoEleicoes</b>. "
+            "Depois, toque em <b>Verificar inscrição</b>."
+        )
+        if update.effective_message:
+            await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=markup)
+        return False
+
     async def _guard_live_control(self, update: Update) -> bool:
         chat = update.effective_chat
         if chat and chat.type != "private" and not self._is_configured_admin(update):
@@ -72,6 +112,8 @@ class ElectionBot:
         return app
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
         intro = (
             "<b>Eleições 2026 • Apuração</b>\n\n"
             "Acompanhe os resultados para Presidente usando dados publicados pelo Tribunal Superior Eleitoral. "
@@ -108,9 +150,13 @@ class ElectionBot:
                 await message.reply_text(text, parse_mode=ParseMode.HTML)
 
     async def resultado(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
         await self._send_result(update.effective_message, "br")
 
     async def estado(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
         if not context.args:
             await update.effective_message.reply_text("Use /estado MS, /estado SP, /estado RJ etc.")
             return
@@ -121,6 +167,8 @@ class ElectionBot:
         await self._send_result(update.effective_message, uf)
 
     async def acompanhar(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
         if not await self._guard_live_control(update):
             return
         scope = "br"
@@ -150,6 +198,8 @@ class ElectionBot:
 
 
     async def alertas(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
         if not await self._guard_live_control(update):
             return
         if not context.args or context.args[0].lower() not in {"on", "off"}:
@@ -160,6 +210,8 @@ class ElectionBot:
         await update.effective_message.reply_text("Alertas de marcos ativados." if enabled else "Alertas de marcos desativados.")
 
     async def fonte(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
         await update.effective_message.reply_text(
             f"<b>Fonte:</b> {self.settings.source_label}\n{self.settings.public_results_url}",
             parse_mode=ParseMode.HTML,
@@ -167,6 +219,8 @@ class ElectionBot:
         )
 
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
         try:
             result, _ = await self.tse.fetch("br")
             await update.effective_message.reply_text(
@@ -210,9 +264,25 @@ class ElectionBot:
         query = update.callback_query
         if not query:
             return
-        await query.answer()
         data = query.data or ""
+        if data == "verify_subscription":
+            if await self._is_required_channel_member(update, context):
+                await query.answer("Inscrição confirmada.")
+                try:
+                    await query.edit_message_text(
+                        "<b>Inscrição confirmada.</b>\n\nAcesso ao bot liberado. Use /resultado para acompanhar a apuração.",
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=result_keyboard(self.settings),
+                    )
+                except BadRequest:
+                    pass
+            else:
+                await query.answer("Ainda não encontrei sua inscrição em @ResultadoEleicoes.", show_alert=True)
+            return
+        await query.answer()
         if data.startswith("result:"):
+            if not await self._guard_required_channel(update, context):
+                return
             scope = data.split(":", 1)[1]
             try:
                 result, _ = await self.tse.fetch(scope)
@@ -226,6 +296,8 @@ class ElectionBot:
                     raise
             return
         if data.startswith("subscribe:"):
+            if not await self._guard_required_channel(update, context):
+                return
             if not await self._guard_live_control(update):
                 return
             scope = data.split(":", 1)[1]
