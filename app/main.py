@@ -120,11 +120,17 @@ async def api_g1_poll(
     scope: str = Query(default="br"),
     round_: int = Query(default=1, alias="round", ge=1, le=2),
     institute: str | None = Query(default=None),
+    question: str | None = Query(default=None),
     force: bool = Query(default=False),
 ):
     try:
         result = await g1_polls.fetch(
-            office, scope, round_, institute or None, force=force
+            office,
+            scope,
+            round_,
+            institute or None,
+            question_code=question or None,
+            force=force,
         )
         return result.to_dict()
     except ValueError as exc:
