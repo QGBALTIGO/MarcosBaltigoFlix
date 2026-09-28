@@ -33,7 +33,19 @@ async function loadResults(){
     state.candidateQuery=$('#candidateSearch')?.value||'';
     if(resultResponse){
       const result=await resultResponse.json();
-      if(resultResponse.ok){state.result=result;renderSummary()}
+      if(resultResponse.ok){
+        if(result.simulation){
+          state.result=null;
+          $('#summaryCard').style.display='none';
+        }else{
+          state.result=result;
+          $('#summaryCard').style.display='block';
+          renderSummary();
+        }
+      }
+    }else{
+      state.result=null;
+      $('#summaryCard').style.display='none';
     }
     $('#locationName').textContent=states[state.scope]||state.scope.toUpperCase();
     $('#officeTitle').textContent=officeLabels[state.office];
@@ -176,9 +188,8 @@ async function loadCandidateDetail(c){
     if(!r.ok)return;
     state.selectedCandidate=d;
     fillCandidateDetail(d);
-    if(d.judgment_status){
-      const st=$('#detailStatus');st.style.display='inline-block';st.textContent=d.judgment_status;
-    }
+    // Situação processual muda ao longo da campanha; não exibimos dado potencialmente
+    // defasado vindo do espelho até termos consulta direta atualizada do TSE.
   }catch(e){}
 }
 
