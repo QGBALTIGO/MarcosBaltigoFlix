@@ -38,7 +38,8 @@ async def g1_poll_loop(
             log.exception("Smoke G1 estadual falhou: %s MS", office)
 
     tz = ZoneInfo(settings.timezone)
-    daily_key = "g1:daily:presidente:datafolha"
+    daily_institute_key = settings.g1_daily_institute.strip().lower()
+    daily_key = f"g1:daily:presidente:{daily_institute_key}"
     specs = [
         ("presidente", "br", 1, "datafolha"),
         ("presidente", "br", 1, "quaest"),
@@ -63,8 +64,13 @@ async def g1_poll_loop(
                     ):
                         await storage.set_state(daily_key, today)
                         await storage.set_state(
-                            "g1:fingerprint:presidente:br:datafolha",
+                            f"g1:fingerprint:presidente:br:{daily_institute_key}",
                             poll.fingerprint,
+                        )
+                        log.info(
+                            "Boletim diário G1 publicado: %s, rodada %s",
+                            poll.institute,
+                            poll.latest_date,
                         )
                         log.info(
                             "Boletim diário G1 publicado no canal: %s, rodada %s",
@@ -94,6 +100,12 @@ async def g1_poll_loop(
                             headline="NOVA PESQUISA PUBLICADA NO G1",
                         ):
                             await storage.set_state(state_key, poll.fingerprint)
+                            log.info(
+                                "Nova pesquisa G1 publicada automaticamente: %s/%s, rodada %s",
+                                institute,
+                                office,
+                                poll.latest_date,
+                            )
                 except Exception:
                     log.exception(
                         "Falha verificando nova pesquisa G1: %s/%s",
