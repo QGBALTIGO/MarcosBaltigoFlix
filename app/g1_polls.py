@@ -68,6 +68,31 @@ class G1PollChoice:
 
 
 @dataclass(slots=True)
+class G1QuestionOption:
+    code: str
+    label: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class G1Stratum:
+    group: str
+    group_slug: str
+    label: str
+    margin_error_points: float | None
+    choices: list[G1PollChoice]
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["choices"] = [c.to_dict() for c in self.choices]
+        data["available_questions"] = [q.to_dict() for q in self.available_questions]
+        data["strata"] = [s.to_dict() for s in self.strata]
+        return data
+
+
+@dataclass(slots=True)
 class G1Poll:
     office: str
     scope: str
@@ -82,6 +107,9 @@ class G1Poll:
     registrations: list[str]
     methodology: str
     choices: list[G1PollChoice]
+    available_questions: list[G1QuestionOption]
+    strata: list[G1Stratum]
+    strata_order: list[str]
     source_url: str
     api_url: str
     fetched_at: str
@@ -104,6 +132,7 @@ class Discovery:
     sample_size: int | None
     field_period: str
     registrations: list[str]
+    questions: list[G1QuestionOption]
 
 
 def _canonical_institute(value: str | None) -> str | None:
@@ -166,6 +195,24 @@ def parse_page_config(page_html: str) -> dict[str, str]:
     return data
 
 
+def _parse_questions(page_html: str) -> list[G1QuestionOption]:
+    pattern = re.compile(
+        r'<(?:p|a)\b[^>]*\bid=["\']([A-Z][A-Z0-9-]+)["\'][^>]*>(.*?)</(?:p|a)>',
+        re.S | re.I,
+    )
+    seen: set[str] = set()
+    questions: list[G1QuestionOption] = []
+    for match in pattern.finditer(page_html):
+        code = match.group(1).strip().upper()
+        if not any(marker in code for marker in ("-PRE-", "-GOV-", "-SEN-")):
+            continue
+        label = _clean_html(match.group(2))
+        if code and label and code not in seen:
+            seen.add(code)
+            questions.append(G1QuestionOption(code=code, label=label))
+    return questions
+
+
 def _parse_methodology(page_html: str) -> tuple[str, int | None, str, list[str]]:
     match = _METHOD_RE.search(page_html)
     methodology = _clean_html(match.group(1)) if match else ""
@@ -204,6 +251,15 @@ def _parse_methodology(page_html: str) -> tuple[str, int | None, str, list[str]]
 
 def _question_label(code: str) -> str:
     upper = code.upper()
+    if upper.startswith("APROVACAO"):
+        return "Aprovação do governo"
+    if upper.startswith("AVALIACAO"):
+        return "Avaliação do governo"
+    if upper.startswith("REJEICAO"):
+        return "Rejeição"
+    if upper.startswith("SEGTURNO"):
+        scenario = upper.rsplit("-", 1)[-1].lstrip("0") or "1"
+        return f"Segundo turno — cenário {scenario}"
     if upper.startswith("ESTIMULADA"):
         if "VOTO-1" in upper:
             return "Estimulada — voto 1"
@@ -227,6 +283,35 @@ def _percent(value: Any) -> float:
     except (TypeError, ValueError):
         return 0.0
     return round(number * 100.0 if abs(number) <= 1.0 else number, 2)
+
+
+def _series_choices(
+    series_list: list[dict[str, Any]],
+    party_by_name: dict[str, str],
+) -> tuple[list[G1PollChoice], set[str]]:
+    choices: list[G1PollChoice] = []
+    all_dates: set[str] = set()
+    for series in series_list:
+        name = str(series.get("option") or "").strip()
+        if not name:
+            continue
+        points: list[G1HistoryPoint] = []
+        for item in series.get("values") or []:
+            raw_date = str(item.get("date") or "").strip()
+            if not raw_date:
+                continue
+            day = raw_date[:10]
+            all_dates.add(day)
+            points.append(G1HistoryPoint(day, _percent(item.get("value"))))
+        points.sort(key=lambda x: x.date)
+        if points:
+            choices.append(G1PollChoice(
+                name=name,
+                party=party_by_name.get(name, ""),
+                percentage=points[-1].percentage,
+                history=points,
+            ))
+    return choices, all_dates
 
 
 def parse_g1_payload(
@@ -260,29 +345,7 @@ def parse_g1_payload(
         if name:
             party_by_name[name] = str(party.get("sigla") or "").strip()
 
-    choices: list[G1PollChoice] = []
-    all_dates: set[str] = set()
-    for series in scenario.get("data") or []:
-        name = str(series.get("option") or "").strip()
-        if not name:
-            continue
-        points: list[G1HistoryPoint] = []
-        for item in series.get("values") or []:
-            raw_date = str(item.get("date") or "").strip()
-            if not raw_date:
-                continue
-            day = raw_date[:10]
-            all_dates.add(day)
-            points.append(G1HistoryPoint(day, _percent(item.get("value"))))
-        points.sort(key=lambda x: x.date)
-        if points:
-            choices.append(G1PollChoice(
-                name=name,
-                party=party_by_name.get(name, ""),
-                percentage=points[-1].percentage,
-                history=points,
-            ))
-
+    choices, all_dates = _series_choices(scenario.get("data") or [], party_by_name)
     latest_date = max(all_dates) if all_dates else ""
     if latest_date:
         for choice in choices:
@@ -295,6 +358,24 @@ def parse_g1_payload(
         margin_points = float(margin) if margin not in (None, "") else None
     except (TypeError, ValueError):
         margin_points = None
+
+    strata: list[G1Stratum] = []
+    for item in resultado.get("estratos") or []:
+        stratum_choices, _ = _series_choices(item.get("data") or [], party_by_name)
+        raw_margin = item.get("margem")
+        try:
+            stratum_margin = float(raw_margin) if raw_margin not in (None, "") else None
+        except (TypeError, ValueError):
+            stratum_margin = None
+        strata.append(G1Stratum(
+            group=str(item.get("bandeira") or "").strip(),
+            group_slug=str(item.get("bandeira_slug") or "").strip(),
+            label=str(item.get("variavel_cruzamento") or "").strip(),
+            margin_error_points=stratum_margin,
+            choices=stratum_choices,
+        ))
+
+    strata_order = [str(x).strip() for x in (resultado.get("ordenacao_estratos") or []) if str(x).strip()]
 
     fingerprint_raw = json.dumps({
         "office": office,
@@ -321,6 +402,9 @@ def parse_g1_payload(
         registrations=discovery.registrations,
         methodology=discovery.methodology,
         choices=choices,
+        available_questions=discovery.questions,
+        strata=strata,
+        strata_order=strata_order,
         source_url=discovery.page_url,
         api_url=discovery.api_url,
         fetched_at=datetime.now(ZoneInfo("America/Campo_Grande")).isoformat(timespec="seconds"),
@@ -412,8 +496,17 @@ class G1PollClient:
         self._cache: dict[str, tuple[float, G1Poll]] = {}
 
     @staticmethod
-    def _key(office: str, scope: str, round_: int, institute: str | None) -> str:
-        return f"{office.lower()}:{scope.lower()}:{round_}:{(institute or '').lower()}"
+    def _key(
+        office: str,
+        scope: str,
+        round_: int,
+        institute: str | None,
+        question_code: str | None = None,
+    ) -> str:
+        return (
+            f"{office.lower()}:{scope.lower()}:{round_}:{(institute or '').lower()}:"
+            f"{(question_code or '').upper()}"
+        )
 
     async def _discover(
         self,
@@ -421,9 +514,10 @@ class G1PollClient:
         scope: str,
         round_: int,
         institute: str | None,
+        question_code: str | None = None,
         force: bool = False,
     ) -> Discovery:
-        key = self._key(office, scope, round_, institute)
+        key = self._key(office, scope, round_, institute, question_code)
         existing = self._discoveries.get(key)
         now = time.monotonic()
         if existing and not force and now - existing[0] < self.discovery_seconds:
@@ -436,9 +530,19 @@ class G1PollClient:
         config = parse_page_config(page_html)
 
         page_id = config["paginaId"]
-        question_code = config["tipoPergunta"]
+        questions = _parse_questions(page_html)
+        default_question_code = config["tipoPergunta"].upper()
+        selected_question_code = (question_code or default_question_code).strip().upper()
+        available_codes = {q.code for q in questions}
+        if questions and selected_question_code not in available_codes:
+            raise ValueError("Pergunta indisponível para esta pesquisa.")
+        if not any(q.code == default_question_code for q in questions):
+            questions.insert(0, G1QuestionOption(
+                code=default_question_code,
+                label=_question_label(default_question_code),
+            ))
         actual_institute = config["instituto"] or _canonical_institute(institute) or "G1"
-        query = urlencode({"tipo_pergunta": question_code, "instituto": actual_institute})
+        query = urlencode({"tipo_pergunta": selected_question_code, "instituto": actual_institute})
         api_url = f"{G1_API_BASE}/pesquisas-eleitorais/graficos/{page_id}/?{query}"
 
         methodology, sample, period, regs = _parse_methodology(page_html)
@@ -446,12 +550,13 @@ class G1PollClient:
             api_url=api_url,
             page_url=page_url,
             institute=actual_institute,
-            question_code=question_code,
+            question_code=selected_question_code,
             page_id=page_id,
             methodology=methodology,
             sample_size=sample,
             field_period=period,
             registrations=regs,
+            questions=questions,
         )
         self._discoveries[key] = (time.monotonic(), discovery)
         return discovery
@@ -462,6 +567,7 @@ class G1PollClient:
         scope: str = "br",
         round_: int = 1,
         institute: str | None = None,
+        question_code: str | None = None,
         force: bool = False,
     ) -> G1Poll:
         office = office.lower().strip()
@@ -469,19 +575,23 @@ class G1PollClient:
         canonical = _canonical_institute(institute)
         g1_url(office, scope, round_, canonical)
 
-        key = self._key(office, scope, round_, canonical)
+        key = self._key(office, scope, round_, canonical, question_code)
         now = time.monotonic()
         cached = self._cache.get(key)
         if cached and not force and now - cached[0] < self.cache_seconds:
             return cached[1]
 
-        discovery = await self._discover(office, scope, round_, canonical, force=force)
+        discovery = await self._discover(
+            office, scope, round_, canonical, question_code, force=force
+        )
         response = await self.http.get(
             discovery.api_url,
             headers={"Accept": "application/json", "Cache-Control": "no-cache" if force else "max-age=0"},
         )
         if response.status_code >= 400 and not force:
-            discovery = await self._discover(office, scope, round_, canonical, force=True)
+            discovery = await self._discover(
+                office, scope, round_, canonical, question_code, force=True
+            )
             response = await self.http.get(discovery.api_url, headers={"Accept": "application/json"})
         response.raise_for_status()
         poll = parse_g1_payload(response.json(), discovery, office, scope, round_)
