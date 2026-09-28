@@ -14,6 +14,7 @@ from .config import get_settings
 from .monitor import monitor_loop
 from .storage import Storage
 from .tse import TSEClient, VALID_UFS
+from .g1_polls import G1PollClient, g1_url
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +28,7 @@ settings = get_settings()
 storage = Storage(settings.database_path)
 tse = TSEClient(settings)
 election_bot = ElectionBot(settings, tse, storage)
+g1_polls = G1PollClient()
 stop_event = asyncio.Event()
 monitor_task: asyncio.Task | None = None
 
@@ -56,6 +58,7 @@ async def lifespan(app: FastAPI):
         await tg_app.stop()
         await tg_app.shutdown()
     await tse.close()
+    await g1_polls.close()
 
 
 app = FastAPI(title="Eleições 2026 Bot", version="1.0.0", lifespan=lifespan)
@@ -92,3 +95,28 @@ async def api_result(scope: str = Query(default="br", min_length=2, max_length=2
         return data
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Falha consultando TSE: {type(exc).__name__}") from exc
+
+
+@app.get("/api/g1/poll")
+async def api_g1_poll(
+    office: str = Query(default="presidente"),
+    scope: str = Query(default="br"),
+    round_: int = Query(default=1, alias="round", ge=1, le=2),
+    institute: str | None = Query(default=None),
+    force: bool = Query(default=False),
+):
+    try:
+        result = await g1_polls.fetch(office, scope, round_, institute, force=force)
+        return result.to_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Falha lendo pesquisas do G1")
+        raise HTTPException(status_code=502, detail=f"Falha consultando G1: {type(exc).__name__}") from exc
+
+
+@app.get("/api/g1/debug")
+async def api_g1_debug():
+    # Diagnóstico temporário do carregamento dinâmico do especial do G1.
+    url = g1_url("presidente", "br", 1, "datafolha")
+    return await g1_polls.debug(url)
