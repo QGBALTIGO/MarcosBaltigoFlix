@@ -61,7 +61,7 @@ def poll_keyboard(settings: Settings, poll: G1Poll, external_chat: bool = False)
     return InlineKeyboardMarkup(rows)
 
 
-def polls_menu_keyboard(settings: Settings) -> InlineKeyboardMarkup:
+def polls_menu_keyboard(settings: Settings, external_chat: bool = False) -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton("Presidente • Datafolha", callback_data="g1:presidente:br:datafolha"),
@@ -73,7 +73,13 @@ def polls_menu_keyboard(settings: Settings) -> InlineKeyboardMarkup:
         ],
     ]
     if settings.webapp_url:
-        rows.append([InlineKeyboardButton("Ver todos os estados no painel", web_app=WebAppInfo(settings.webapp_url))])
+        rows.append([
+            InlineKeyboardButton(
+                "Ver todos os estados no painel",
+                url=settings.webapp_url if external_chat else None,
+                web_app=None if external_chat else WebAppInfo(settings.webapp_url),
+            )
+        ])
     return InlineKeyboardMarkup(rows)
 
 
@@ -187,7 +193,14 @@ class ElectionBot:
         )
         if self.settings.is_simulation:
             intro += "\n\n⚠️ <b>O bot está em modo SIMULAÇÃO.</b> Os números atuais não são votos reais."
-        await update.effective_message.reply_text(intro, parse_mode=ParseMode.HTML, reply_markup=result_keyboard(self.settings))
+        await update.effective_message.reply_text(
+            intro,
+            parse_mode=ParseMode.HTML,
+            reply_markup=result_keyboard(
+                self.settings,
+                external_chat=update.effective_chat.type != "private",
+            ),
+        )
 
     async def _send_result(self, message, scope: str, edit: bool = False) -> None:
         try:
@@ -312,7 +325,10 @@ class ElectionBot:
             "Os dados são exibidos com instituto, data, margem de erro e registro no TSE quando disponíveis.\n\n"
             "<i>Pesquisa de intenção de voto não é apuração nem previsão de resultado.</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=polls_menu_keyboard(self.settings),
+            reply_markup=polls_menu_keyboard(
+                self.settings,
+                external_chat=update.effective_chat.type != "private",
+            ),
         )
 
     def _poll_args(self, args: list[str]) -> tuple[str, str, str | None]:
@@ -560,7 +576,7 @@ class ElectionBot:
                             self.settings,
                             subscribed=True,
                             scope=scope,
-                            external_chat=item.chat_id < 0,
+                            external_chat=query.message.chat_id < 0,
                         ),
                     )
                 except BadRequest:
@@ -573,7 +589,14 @@ class ElectionBot:
             if query.message:
                 await self.storage.disable_live(query.message.chat_id)
                 try:
-                    await query.edit_message_reply_markup(result_keyboard(self.settings, subscribed=False, scope=scope))
+                    await query.edit_message_reply_markup(
+                        result_keyboard(
+                            self.settings,
+                            subscribed=False,
+                            scope=scope,
+                            external_chat=query.message.chat_id < 0,
+                        )
+                    )
                 except BadRequest:
                     pass
 
