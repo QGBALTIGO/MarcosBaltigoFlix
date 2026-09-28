@@ -34,22 +34,37 @@ stop_event = asyncio.Event()
 monitor_task: asyncio.Task | None = None
 
 async def _g1_startup_probe() -> None:
-    try:
-        data = await g1_polls.debug(g1_url("presidente", "br", 1, "datafolha"))
-        lines = data.get("lines", [])
-        start = next((i for i, x in enumerate(lines) if x.lower() == "total"), 0)
-        compact = {
-            "status": data.get("status"),
-            "title": data.get("title"),
-            "total_block": lines[start:start + 80],
-            "percent_contexts": data.get("percent_contexts", [])[:30],
-            "interesting_responses": data.get("interesting_responses", [])[:60],
-            "scripts": data.get("scripts", [])[-20:],
-            "api_payloads": data.get("api_payloads", [])[:3],
-        }
-        logging.getLogger(__name__).warning("G1_PROBE %s", json.dumps(compact, ensure_ascii=False))
-    except Exception:
-        logging.getLogger(__name__).exception("G1_PROBE_FAILED")
+    specs = [
+        ("presidente-br-datafolha", g1_url("presidente", "br", 1, "datafolha")),
+        ("governador-ms", g1_url("governador", "ms", 1, None)),
+        ("senador-ms", g1_url("senador", "ms", 1, None)),
+        ("governador-sp-datafolha", g1_url("governador", "sp", 1, "datafolha")),
+        ("senador-sp-datafolha", g1_url("senador", "sp", 1, "datafolha")),
+    ]
+    for label, url in specs:
+        try:
+            data = await g1_polls.debug(url)
+            api_urls = [
+                x for x in data.get("interesting_responses", [])
+                if "/api/pesquisas-eleitorais/" in x
+            ]
+            payload_summary = []
+            for item in data.get("api_payloads", []):
+                payload = item.get("payload") or {}
+                resultado = payload.get("resultado") or {}
+                cenarios = resultado.get("cenarios") or []
+                payload_summary.append({
+                    "url": item.get("url"),
+                    "scenario_count": len(cenarios),
+                    "first_question": ((cenarios[0].get("pergunta") or {}).get("codigo") if cenarios else None),
+                    "first_scenario_id": (cenarios[0].get("id") if cenarios else None),
+                })
+            logging.getLogger(__name__).warning(
+                "G1_DISCOVERY %s",
+                json.dumps({"label": label, "url": url, "api_urls": api_urls, "payloads": payload_summary}, ensure_ascii=False),
+            )
+        except Exception:
+            logging.getLogger(__name__).exception("G1_DISCOVERY_FAILED %s", label)
 
 
 @asynccontextmanager
