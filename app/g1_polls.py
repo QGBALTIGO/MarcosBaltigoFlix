@@ -87,8 +87,6 @@ class G1Stratum:
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["choices"] = [c.to_dict() for c in self.choices]
-        data["available_questions"] = [q.to_dict() for q in self.available_questions]
-        data["strata"] = [s.to_dict() for s in self.strata]
         return data
 
 
@@ -118,6 +116,8 @@ class G1Poll:
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["choices"] = [c.to_dict() for c in self.choices]
+        data["available_questions"] = [q.to_dict() for q in self.available_questions]
+        data["strata"] = [s.to_dict() for s in self.strata]
         return data
 
 
