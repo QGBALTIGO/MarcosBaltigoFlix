@@ -40,6 +40,8 @@ async def g1_poll_loop(
     tz = ZoneInfo(settings.timezone)
     daily_institute_key = settings.g1_daily_institute.strip().lower()
     daily_key = f"g1:daily:presidente:{daily_institute_key}"
+    layout_key = "g1:daily:layout_version"
+    layout_version = "rich-table-v1"
     specs = [
         ("presidente", "br", 1, "datafolha"),
         ("presidente", "br", 1, "quaest"),
@@ -54,31 +56,36 @@ async def g1_poll_loop(
         if settings.g1_daily_enabled and settings.channel_id and due:
             try:
                 daily_state = await storage.get_state(daily_key)
-                if daily_state != today:
+                current_layout = await storage.get_state(layout_key)
+                needs_layout_refresh = current_layout != layout_version
+                if daily_state != today or needs_layout_refresh:
                     poll = await client.fetch(
                         "presidente", "br", 1, settings.g1_daily_institute, force=True
                     )
-                    if await bot.publish_g1_poll(
-                        poll,
-                        headline="BOLETIM DIÁRIO • ÚLTIMA PESQUISA DISPONÍVEL",
-                    ):
+                    headline = (
+                        "PESQUISA ELEITORAL • PRESIDENTE"
+                        if needs_layout_refresh and daily_state == today
+                        else "BOLETIM DIÁRIO • PESQUISA ELEITORAL"
+                    )
+                    if await bot.publish_g1_poll(poll, headline=headline):
                         await storage.set_state(daily_key, today)
+                        await storage.set_state(layout_key, layout_version)
                         await storage.set_state(
                             f"g1:fingerprint:presidente:br:{daily_institute_key}",
                             poll.fingerprint,
                         )
                         log.info(
-                            "Boletim diário G1 publicado: %s, rodada %s",
-                            poll.institute,
-                            poll.latest_date,
-                        )
-                        log.info(
-                            "Boletim diário G1 publicado no canal: %s, rodada %s",
+                            "Boletim diário G1 publicado no formato %s: %s, rodada %s",
+                            layout_version,
                             poll.institute,
                             poll.latest_date,
                         )
                 elif last_monitor == 0.0:
-                    log.info("Boletim diário G1 já registrado como publicado em %s", today)
+                    log.info(
+                        "Boletim diário G1 já publicado em %s com layout %s",
+                        today,
+                        current_layout,
+                    )
             except Exception:
                 log.exception("Falha publicando boletim diário de pesquisas")
 

@@ -12,6 +12,7 @@ from .formatter import UF_NAMES, format_result
 from .g1_polls import G1Poll, G1PollClient
 from .poll_formatter import format_g1_history, format_g1_poll
 from .storage import Storage, milestone_for
+from .telegram_rich import build_g1_channel_rich_html, send_rich_html
 from .tse import TSEClient, VALID_UFS
 
 log = logging.getLogger(__name__)
@@ -447,18 +448,37 @@ class ElectionBot:
         if not self.application or not self.settings.channel_id:
             log.warning("Canal ou aplicação Telegram indisponível para publicar pesquisa.")
             return False
+
+        # Bot API 10.3 Rich Messages: usa tabela nativa/colunas no canal.
         try:
-            await self.application.bot.send_message(
-                chat_id=self.settings.channel_id,
-                text=format_g1_poll(poll, headline=headline),
-                parse_mode=ParseMode.HTML,
-                reply_markup=poll_keyboard(self.settings, poll, external_chat=True),
-                disable_web_page_preview=True,
+            rich_html = build_g1_channel_rich_html(
+                poll,
+                headline=headline,
+                panel_url=self.settings.webapp_url,
             )
+            await send_rich_html(
+                token=self.settings.telegram_bot_token,
+                chat_id=self.settings.channel_id,
+                rich_html=rich_html,
+                disable_notification=False,
+            )
+            log.info("Pesquisa publicada como Rich Message no canal %s", self.settings.channel_id)
             return True
-        except TelegramError:
-            log.exception("Falha publicando pesquisa no canal %s", self.settings.channel_id)
-            return False
+        except Exception:
+            # Fallback compatível caso a API Rich esteja temporariamente indisponível.
+            log.exception("Falha no Rich Message; usando mensagem clássica")
+            try:
+                await self.application.bot.send_message(
+                    chat_id=self.settings.channel_id,
+                    text=format_g1_poll(poll, headline=headline),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=poll_keyboard(self.settings, poll, external_chat=True),
+                    disable_web_page_preview=True,
+                )
+                return True
+            except TelegramError:
+                log.exception("Falha publicando pesquisa no canal %s", self.settings.channel_id)
+                return False
 
     async def boletim(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.effective_user.id if update.effective_user else 0
