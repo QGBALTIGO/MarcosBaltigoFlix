@@ -56,7 +56,8 @@ var states={br:"Brasil",ac:"Acre",al:"Alagoas",ap:"Amapá",am:"Amazonas",ba:"Bah
 var fmt=function(n){return new Intl.NumberFormat("pt-BR").format(Number(n||0))};
 var pct=function(n){return Number(n||0).toLocaleString("pt-BR",{minimumFractionDigits:0,maximumFractionDigits:2})+"%"};
 var esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})};
-var lastPoll=null;
+var lastPoll=null,catalog=null;
+var officeNames={presidente:"Presidente",governador:"Governador",senador:"Senador"};
 function fillSelect(el,includeBR){el.innerHTML="";Object.keys(states).forEach(function(k){if(k==="br"&&!includeBR)return;var o=document.createElement("option");o.value=k;o.textContent=states[k];el.appendChild(o)})}
 fillSelect(document.querySelector("#tseScope"),true);fillSelect(document.querySelector("#pollScope"),true);document.querySelector("#pollScope").value="br";
 
@@ -71,7 +72,14 @@ document.querySelector("#tseCandidates").innerHTML=(d.candidates||[]).map(functi
 }catch(e){document.querySelector("#tseCandidates").innerHTML='<div class="panel error">Falha consultando o TSE: '+esc(e.message)+'</div>'}
 }
 
-function adjustPollScope(){var office=document.querySelector("#office").value;var s=document.querySelector("#pollScope");var inst=document.querySelector("#institute");var current=s.value;if(office==="presidente"){fillSelect(s,true);s.value=states[current]?current:"br";if(!inst.value)inst.value="datafolha"}else{fillSelect(s,false);s.value=current&&current!=="br"?current:"ms";inst.value=""}}
+function syncInstituteOptions(){
+var office=document.querySelector("#office").value,scope=document.querySelector("#pollScope").value,sel=document.querySelector("#institute"),current=sel.value;
+var available=[];if(catalog){var cargo=(catalog.cargos||[]).find(function(x){return x.nome===officeNames[office]});var loc=cargo&&(cargo.localidades||[]).find(function(x){return String(x.uf).toLowerCase()===scope});available=loc&&loc.turnos&&loc.turnos["1-turno"]?loc.turnos["1-turno"].map(function(x){return x.nome}):[]}
+sel.innerHTML='<option value="">Automático</option>';available.forEach(function(name){var o=document.createElement("option");o.value=String(name).toLowerCase();o.textContent=name;sel.appendChild(o)});
+if(Array.from(sel.options).some(function(o){return o.value===current}))sel.value=current;else if(office==="presidente"&&scope==="br"&&available.some(function(x){return x.toLowerCase()==="datafolha"}))sel.value="datafolha";else sel.value="";
+}
+async function loadCatalog(){try{var r=await fetch("/api/g1/catalog",{cache:"no-store"});if(r.ok){catalog=await r.json();syncInstituteOptions()}}catch(e){}}
+function adjustPollScope(){var office=document.querySelector("#office").value;var s=document.querySelector("#pollScope");var current=s.value;if(office==="presidente"){fillSelect(s,true);s.value=states[current]?current:"br"}else{fillSelect(s,false);s.value=current&&current!=="br"?current:"ms"}syncInstituteOptions()}
 
 function fillPollFilters(d){
 var q=document.querySelector("#question"),current=q.value;q.innerHTML="";
@@ -111,7 +119,7 @@ document.querySelector("#institute").addEventListener("change",function(){docume
 document.querySelector("#question").addEventListener("change",function(){document.querySelector("#stratum").value="";loadPoll(false)});
 document.querySelector("#stratum").addEventListener("change",renderPoll);
 document.querySelector("#pollRefresh").addEventListener("click",function(){loadPoll(false)});document.querySelector("#tseScope").addEventListener("change",loadTSE);document.querySelector("#tseRefresh").addEventListener("click",loadTSE);
-adjustPollScope();loadTSE();setInterval(function(){if(document.querySelector("#tse").classList.contains("active"))loadTSE()},20000);
+adjustPollScope();loadCatalog();loadTSE();setInterval(function(){if(document.querySelector("#tse").classList.contains("active"))loadTSE()},20000);
 </script>
 </body>
 </html>
