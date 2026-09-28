@@ -280,6 +280,16 @@ class G1PollClient:
                 """els => els.filter(e => /^\\s*\\d+(?:[.,]\\d+)?%\\s*$/.test((e.innerText||'').trim())).slice(0,80).map(e => ({tag:e.tagName, cls:e.className||'', text:(e.innerText||'').trim(), parent:(e.parentElement?.innerText||'').slice(0,250)}))"""
             )
             scripts = await page.locator("script[src]").evaluate_all("els => els.map(e=>e.src)")
+            api_payloads = []
+            for api_url in list(dict.fromkeys(responses)):
+                if "/api/pesquisas-eleitorais/" not in api_url:
+                    continue
+                try:
+                    api_resp = await context.request.get(api_url, timeout=20000)
+                    payload = await api_resp.json()
+                    api_payloads.append({"url": api_url, "status": api_resp.status, "payload": payload})
+                except Exception as exc:
+                    api_payloads.append({"url": api_url, "error": type(exc).__name__})
             return {
                 "status": response.status if response else None,
                 "url": page.url,
@@ -288,6 +298,7 @@ class G1PollClient:
                 "percent_contexts": percent_contexts[:80],
                 "scripts": scripts[:80],
                 "interesting_responses": list(dict.fromkeys(responses))[:120],
+                "api_payloads": api_payloads[:10],
             }
         finally:
             await context.close()
