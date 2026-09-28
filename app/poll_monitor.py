@@ -52,7 +52,8 @@ async def g1_poll_loop(
 
         if settings.g1_daily_enabled and settings.channel_id and due:
             try:
-                if await storage.get_state(daily_key) != today:
+                daily_state = await storage.get_state(daily_key)
+                if daily_state != today:
                     poll = await client.fetch(
                         "presidente", "br", 1, settings.g1_daily_institute, force=True
                     )
@@ -65,6 +66,13 @@ async def g1_poll_loop(
                             "g1:fingerprint:presidente:br:datafolha",
                             poll.fingerprint,
                         )
+                        log.info(
+                            "Boletim diário G1 publicado no canal: %s, rodada %s",
+                            poll.institute,
+                            poll.latest_date,
+                        )
+                elif last_monitor == 0.0:
+                    log.info("Boletim diário G1 já registrado como publicado em %s", today)
             except Exception:
                 log.exception("Falha publicando boletim diário de pesquisas")
 
