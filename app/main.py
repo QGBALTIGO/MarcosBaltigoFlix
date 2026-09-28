@@ -137,6 +137,22 @@ async def api_g1_poll(
         ) from exc
 
 
+@app.get("/api/g1/status")
+async def api_g1_status():
+    return {
+        "daily_enabled": settings.g1_daily_enabled,
+        "daily_time": f"{settings.g1_daily_hour:02d}:{settings.g1_daily_minute:02d}",
+        "daily_institute": settings.g1_daily_institute,
+        "monitor_minutes": settings.g1_monitor_minutes,
+        "timezone": settings.timezone,
+        "last_daily_date": await storage.get_state("g1:daily:presidente:datafolha"),
+        "fingerprints": {
+            "datafolha": await storage.get_state("g1:fingerprint:presidente:br:datafolha"),
+            "quaest": await storage.get_state("g1:fingerprint:presidente:br:quaest"),
+        },
+    }
+
+
 @app.get("/api/g1/catalog")
 async def api_g1_catalog():
     try:
