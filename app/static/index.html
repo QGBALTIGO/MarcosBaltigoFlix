@@ -59,8 +59,13 @@
         <button class="chip" data-office="federal">Deputado Federal</button>
         <button class="chip" data-office="estadual">Deputado Estadual/Distrital</button>
       </div>
-      <div class="section-head"><div class="section-title" id="officeTitle">Presidente</div><small class="muted" id="sectionsInfo">—</small></div>
+      <div class="section-head"><div><div class="section-title" id="officeTitle">Presidente</div><small class="muted" id="estimateMeta">Carregando candidaturas reais…</small></div><small class="muted" id="sectionsInfo">—</small></div>
+      <label class="candidate-search" id="candidateSearchWrap" style="display:none">
+        <span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg></span>
+        <input id="candidateSearch" placeholder="Buscar candidato, número ou partido..." autocomplete="off">
+      </label>
       <div id="candidateArea" class="candidates"><div class="card coming skeleton" style="height:220px"></div></div>
+      <button id="candidateMore" class="more-btn" style="display:none">Mostrar mais candidatos</button>
     </section>
 
     <section id="pollsView" hidden>
@@ -116,8 +121,9 @@
     <div class="detail-hero"><div id="detailPhotoWrap"></div><div><div class="detail-num" id="detailNumber">—</div><div class="detail-name" id="detailName">—</div><div class="detail-party" id="detailParty">—</div><div class="detail-place" id="detailPlace">—</div><span class="detail-status" id="detailStatus" style="display:none"></span></div></div>
     <section class="detail-section"><h3>Resultado atual</h3><div class="detail-card result-detail" id="detailResult"></div></section>
     <section class="detail-section" id="viceSection"><h3>Vice / suplente</h3><div class="detail-card vice" id="detailVice"></div></section>
-    <section class="detail-section"><h3>Informações pessoais</h3><div class="placeholder-grid"><div><small>Nome completo</small><b id="personalFullName">Dados a integrar</b></div><div><small>Nascimento</small><b>—</b></div><div><small>Local</small><b>—</b></div><div><small>Escolaridade</small><b>—</b></div><div><small>Ocupação</small><b>—</b></div><div><small>Estado civil</small><b>—</b></div></div></section>
-    <section class="detail-section"><h3>Bens declarados</h3><div class="detail-card empty-detail"><b>Estrutura pronta para patrimônio</b><br>Esta área receberá patrimônio total, lista de bens e gráfico quando a base de candidaturas do TSE for conectada ao backend.</div></section>
+    <section class="detail-section"><h3>Informações pessoais</h3><div class="placeholder-grid"><div><small>Nome completo</small><b id="personalFullName">—</b></div><div><small>Nascimento</small><b id="personalBirth">—</b></div><div><small>Naturalidade</small><b id="personalBirthplace">—</b></div><div><small>Escolaridade</small><b id="personalEducation">—</b></div><div><small>Ocupação</small><b id="personalOccupation">—</b></div><div><small>Estado civil</small><b id="personalCivil">—</b></div><div><small>Gênero</small><b id="personalGender">—</b></div><div><small>Raça/cor</small><b id="personalRace">—</b></div></div></section>
+    <section class="detail-section"><h3>Coligação / Federação</h3><div class="detail-card empty-detail" id="detailCoalition">—</div></section>
+    <section class="detail-section"><h3>Bens declarados</h3><div class="detail-card" id="assetsCard"><div class="empty-detail">Carregando patrimônio declarado…</div></div></section>
     <section class="detail-section"><h3>Finanças da campanha</h3><div class="detail-card empty-detail"><b>Estrutura pronta para prestação de contas</b><br>Esta área receberá receitas, despesas e principais doadores quando a rota de contas eleitorais estiver conectada.</div></section>
   </div>
 </section>
