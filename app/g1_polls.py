@@ -68,6 +68,7 @@ class G1PollChoice:
     name: str
     number: str
     party: str
+    photo: str
     percentage: float
     history: list[G1HistoryPoint]
 
@@ -320,6 +321,7 @@ def _series_choices(
                 name=name,
                 number=meta.get("number", ""),
                 party=meta.get("party", ""),
+                photo=meta.get("photo", ""),
                 percentage=points[-1].percentage,
                 history=points,
             ))
@@ -367,7 +369,11 @@ def parse_g1_payload(
             raw_number = PARTY_NUMBERS.get(key, PARTY_NUMBERS.get(party_sigla.upper(), ""))
 
         if name:
-            meta_by_name[name] = {"party": party_sigla, "number": raw_number}
+            meta_by_name[name] = {
+                "party": party_sigla,
+                "number": raw_number,
+                "photo": str(option.get("foto") or "").strip(),
+            }
 
     choices, all_dates = _series_choices(scenario.get("data") or [], meta_by_name)
     latest_date = max(all_dates) if all_dates else ""
