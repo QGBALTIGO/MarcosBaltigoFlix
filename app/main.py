@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -32,6 +33,23 @@ g1_polls = G1PollClient()
 stop_event = asyncio.Event()
 monitor_task: asyncio.Task | None = None
 
+async def _g1_startup_probe() -> None:
+    try:
+        data = await g1_polls.debug(g1_url("presidente", "br", 1, "datafolha"))
+        lines = data.get("lines", [])
+        start = next((i for i, x in enumerate(lines) if x.lower() == "total"), 0)
+        compact = {
+            "status": data.get("status"),
+            "title": data.get("title"),
+            "total_block": lines[start:start + 80],
+            "percent_contexts": data.get("percent_contexts", [])[:30],
+            "interesting_responses": data.get("interesting_responses", [])[:60],
+            "scripts": data.get("scripts", [])[-20:],
+        }
+        logging.getLogger(__name__).warning("G1_PROBE %s", json.dumps(compact, ensure_ascii=False))
+    except Exception:
+        logging.getLogger(__name__).exception("G1_PROBE_FAILED")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,6 +62,7 @@ async def lifespan(app: FastAPI):
         if tg_app.updater:
             await tg_app.updater.start_polling(drop_pending_updates=False)
     monitor_task = asyncio.create_task(monitor_loop(settings, tse, storage, election_bot, stop_event))
+    asyncio.create_task(_g1_startup_probe())
     yield
     stop_event.set()
     if monitor_task:
