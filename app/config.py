@@ -23,6 +23,13 @@ def _float(name: str, default: float) -> float:
         return default
 
 
+def _bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on", "sim"}
+
+
 def _admin_ids() -> set[int]:
     raw = os.getenv("ADMIN_IDS", "").strip()
     if not raw:
@@ -53,6 +60,11 @@ class Settings:
     webapp_url: str
     channel_id: str
     required_channel: str
+    g1_daily_enabled: bool
+    g1_daily_hour: int
+    g1_daily_minute: int
+    g1_monitor_minutes: int
+    timezone: str
 
     @property
     def is_simulation(self) -> bool:
@@ -106,4 +118,9 @@ def get_settings() -> Settings:
         webapp_url=os.getenv("WEBAPP_URL", "").strip(),
         channel_id=os.getenv("CHANNEL_ID", "").strip(),
         required_channel=os.getenv("REQUIRED_CHANNEL", os.getenv("CHANNEL_ID", "")).strip(),
+        g1_daily_enabled=_bool("G1_DAILY_ENABLED", True),
+        g1_daily_hour=min(23, max(0, _int("G1_DAILY_HOUR", 9))),
+        g1_daily_minute=min(59, max(0, _int("G1_DAILY_MINUTE", 0))),
+        g1_monitor_minutes=max(0, _int("G1_MONITOR_MINUTES", 15)),
+        timezone=os.getenv("TIMEZONE", "America/Campo_Grande").strip() or "America/Campo_Grande",
     )
