@@ -36,7 +36,7 @@ POLL_OFFICES = {"presidente", "governador", "senador"}
 
 # O TSE indeferiu definitivamente o pedido da chapa de Pablo Marçal em 11/09/2026.
 # O candidato substituto do PRTB que aparece nas fontes oficiais é Leonardo Avalanche.
-EXCLUDED_CANDIDATE_IDS = {"280002553884"}
+EXCLUDED_CANDIDATE_IDS = {"280002553884", "280002554479"}
 
 
 def _norm(value: str | None) -> str:
