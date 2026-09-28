@@ -68,7 +68,7 @@ document.querySelector("#tseCandidates").innerHTML=(d.candidates||[]).map(functi
 }catch(e){document.querySelector("#tseCandidates").innerHTML='<div class="panel error">Falha consultando o TSE: '+esc(e.message)+'</div>'}
 }
 
-function adjustPollScope(){var office=document.querySelector("#office").value;var s=document.querySelector("#pollScope");var current=s.value;if(office==="presidente"){fillSelect(s,true);s.value=states[current]?current:"br"}else{fillSelect(s,false);s.value=current&&current!=="br"?current:"ms"}}
+function adjustPollScope(){var office=document.querySelector("#office").value;var s=document.querySelector("#pollScope");var inst=document.querySelector("#institute");var current=s.value;if(office==="presidente"){fillSelect(s,true);s.value=states[current]?current:"br";if(!inst.value)inst.value="datafolha"}else{fillSelect(s,false);s.value=current&&current!=="br"?current:"ms";inst.value=""}}
 
 async function loadPoll(){
 var office=document.querySelector("#office").value;var scope=document.querySelector("#pollScope").value;var inst=document.querySelector("#institute").value;var q="/api/g1/poll?office="+encodeURIComponent(office)+"&scope="+encodeURIComponent(scope)+"&round=1";if(inst)q+="&institute="+encodeURIComponent(inst);
