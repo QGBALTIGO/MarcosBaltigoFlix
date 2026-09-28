@@ -31,17 +31,22 @@ def result_keyboard(settings: Settings, subscribed: bool = False, scope: str = "
     return InlineKeyboardMarkup(rows)
 
 
-def poll_keyboard(settings: Settings, poll: G1Poll) -> InlineKeyboardMarkup:
-    institute = poll.institute.lower()
-    rows = [
-        [InlineKeyboardButton(
+def poll_keyboard(settings: Settings, poll: G1Poll, external_chat: bool = False) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton("Abrir pesquisa no G1", url=poll.source_url)]]
+    if not external_chat:
+        institute = poll.institute.lower()
+        rows.insert(0, [InlineKeyboardButton(
             "Ver histórico",
             callback_data=f"g1h:{poll.office}:{poll.scope}:{institute}",
-        )],
-        [InlineKeyboardButton("Abrir pesquisa no G1", url=poll.source_url)],
-    ]
+        )])
     if settings.webapp_url:
-        rows.append([InlineKeyboardButton("Painel de pesquisas", web_app=WebAppInfo(settings.webapp_url))])
+        rows.append([
+            InlineKeyboardButton(
+                "Painel de pesquisas",
+                url=settings.webapp_url if external_chat else None,
+                web_app=None if external_chat else WebAppInfo(settings.webapp_url),
+            )
+        ])
     return InlineKeyboardMarkup(rows)
 
 
@@ -177,10 +182,19 @@ class ElectionBot:
         try:
             result, _ = await self.tse.fetch(scope)
             text = format_result(result, self.settings)
+            external_chat = getattr(getattr(message, "chat", None), "type", "private") != "private"
             if edit:
-                await message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=result_keyboard(self.settings, scope=scope))
+                await message.edit_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=result_keyboard(self.settings, scope=scope, external_chat=external_chat),
+                )
             else:
-                await message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=result_keyboard(self.settings, scope=scope))
+                await message.reply_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=result_keyboard(self.settings, scope=scope, external_chat=external_chat),
+                )
         except Exception as exc:
             log.exception("Erro consultando TSE")
             text = f"Não consegui consultar os dados do TSE agora.\n<code>{type(exc).__name__}</code>"
@@ -221,7 +235,12 @@ class ElectionBot:
         sent = await update.effective_message.reply_text(
             format_result(result, self.settings),
             parse_mode=ParseMode.HTML,
-            reply_markup=result_keyboard(self.settings, subscribed=True, scope=scope),
+            reply_markup=result_keyboard(
+                self.settings,
+                subscribed=True,
+                scope=scope,
+                external_chat=update.effective_chat.type != "private",
+            ),
         )
         await self.storage.upsert_live(update.effective_chat.id, sent.message_id, scope, result.sections_counted_pct)
         try:
@@ -322,7 +341,8 @@ class ElectionBot:
         try:
             poll = await self.g1_polls.fetch(office, scope, 1, institute)
             text = format_g1_history(poll) if history else format_g1_poll(poll)
-            markup = poll_keyboard(self.settings, poll)
+            external_chat = getattr(getattr(message, "chat", None), "type", "private") != "private"
+            markup = poll_keyboard(self.settings, poll, external_chat=external_chat)
             if edit:
                 await message.edit_text(
                     text,
@@ -405,7 +425,7 @@ class ElectionBot:
                 chat_id=self.settings.channel_id,
                 text=format_g1_poll(poll, headline=headline),
                 parse_mode=ParseMode.HTML,
-                reply_markup=poll_keyboard(self.settings, poll),
+                reply_markup=poll_keyboard(self.settings, poll, external_chat=True),
                 disable_web_page_preview=True,
             )
             return True
@@ -450,7 +470,7 @@ class ElectionBot:
                 chat_id=chat_id,
                 text=format_result(result, self.settings),
                 parse_mode=ParseMode.HTML,
-                reply_markup=result_keyboard(self.settings, subscribed=True, scope="br"),
+                reply_markup=result_keyboard(self.settings, subscribed=True, scope="br", external_chat=True),
             )
             await self.storage.upsert_live(sent.chat_id, sent.message_id, "br", result.sections_counted_pct)
             try:
@@ -525,7 +545,12 @@ class ElectionBot:
                     await query.edit_message_text(
                         format_result(result, self.settings),
                         parse_mode=ParseMode.HTML,
-                        reply_markup=result_keyboard(self.settings, subscribed=True, scope=scope),
+                        reply_markup=result_keyboard(
+                            self.settings,
+                            subscribed=True,
+                            scope=scope,
+                            external_chat=item.chat_id < 0,
+                        ),
                     )
                 except BadRequest:
                     pass
