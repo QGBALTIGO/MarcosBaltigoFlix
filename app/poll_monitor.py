@@ -24,6 +24,19 @@ async def g1_poll_loop(
     if not settings.g1_daily_enabled and settings.g1_monitor_minutes <= 0:
         return
 
+    for office in ("governador", "senador"):
+        try:
+            sample = await client.fetch(office, "ms", 1, None, force=True)
+            log.info(
+                "Smoke G1 estadual OK: %s MS, %s, rodada %s, %d opções",
+                office,
+                sample.institute,
+                sample.latest_date,
+                len(sample.choices),
+            )
+        except Exception:
+            log.exception("Smoke G1 estadual falhou: %s MS", office)
+
     tz = ZoneInfo(settings.timezone)
     daily_key = "g1:daily:presidente:datafolha"
     specs = [
