@@ -17,7 +17,18 @@ from .tse import TSEClient, VALID_UFS
 log = logging.getLogger(__name__)
 
 
-def result_keyboard(settings: Settings, subscribed: bool = False, scope: str = "br") -> InlineKeyboardMarkup:
+def result_keyboard(
+    settings: Settings,
+    subscribed: bool = False,
+    scope: str = "br",
+    external_chat: bool = False,
+) -> InlineKeyboardMarkup:
+    if external_chat:
+        rows = [[InlineKeyboardButton("Abrir resultados do TSE", url=settings.public_results_url)]]
+        if settings.webapp_url:
+            rows.insert(0, [InlineKeyboardButton("Painel ao vivo", url=settings.webapp_url)])
+        return InlineKeyboardMarkup(rows)
+
     rows = [
         [InlineKeyboardButton("Atualizar", callback_data=f"result:{scope}")],
         [InlineKeyboardButton("Mato Grosso do Sul", callback_data="result:ms"), InlineKeyboardButton("São Paulo", callback_data="result:sp")],
@@ -579,7 +590,12 @@ class ElectionBot:
                         message_id=item.message_id,
                         text=format_result(result, self.settings),
                         parse_mode=ParseMode.HTML,
-                        reply_markup=result_keyboard(self.settings, subscribed=True, scope=scope),
+                        reply_markup=result_keyboard(
+                            self.settings,
+                            subscribed=True,
+                            scope=scope,
+                            external_chat=item.chat_id < 0,
+                        ),
                     )
                 except BadRequest as exc:
                     if "message is not modified" not in str(exc).lower():
