@@ -37,6 +37,15 @@ OFFICES = {"presidente", "governador", "senador"}
 INSTITUTES = {"datafolha":"Datafolha", "quaest":"Quaest"}
 OFFICE_LABELS = {"presidente":"Presidente", "governador":"Governador", "senador":"Senador"}
 
+PARTY_NUMBERS = {
+    "MDB":"15","PDT":"12","PT":"13","PCDOB":"65","PSB":"40","PSDB":"45",
+    "AGIR":"36","MOBILIZA":"33","CIDADANIA":"23","PV":"43","AVANTE":"70",
+    "PP":"11","PSTU":"16","PCB":"21","PRTB":"28","DC":"27","PCO":"29",
+    "PODE":"20","REPUBLICANOS":"10","PSOL":"50","PL":"22","PSD":"55",
+    "SOLIDARIEDADE":"77","NOVO":"30","REDE":"18","DEMOCRATA":"35","UP":"80",
+    "UNIÃO":"44","UNIAO":"44","PRD":"25","MISSÃO":"14","MISSAO":"14",
+}
+
 _PAGE_OBJECT_RE = re.compile(r"window\.g1PesquisasEleitorais\s*=\s*\{(.*?)\}", re.S)
 _METHOD_RE = re.compile(
     r'<div[^>]+class=["\'][^"\']*methodology[^"\']*["\'][^>]*>.*?'
@@ -57,6 +66,7 @@ class G1HistoryPoint:
 @dataclass(slots=True)
 class G1PollChoice:
     name: str
+    number: str
     party: str
     percentage: float
     history: list[G1HistoryPoint]
@@ -287,7 +297,7 @@ def _percent(value: Any) -> float:
 
 def _series_choices(
     series_list: list[dict[str, Any]],
-    party_by_name: dict[str, str],
+    meta_by_name: dict[str, dict[str, str]],
 ) -> tuple[list[G1PollChoice], set[str]]:
     choices: list[G1PollChoice] = []
     all_dates: set[str] = set()
@@ -305,9 +315,11 @@ def _series_choices(
             points.append(G1HistoryPoint(day, _percent(item.get("value"))))
         points.sort(key=lambda x: x.date)
         if points:
+            meta = meta_by_name.get(name, {})
             choices.append(G1PollChoice(
                 name=name,
-                party=party_by_name.get(name, ""),
+                number=meta.get("number", ""),
+                party=meta.get("party", ""),
                 percentage=points[-1].percentage,
                 history=points,
             ))
@@ -338,14 +350,26 @@ def parse_g1_payload(
     question_code = str(question.get("codigo") or discovery.question_code or "")
     question_label = str(question.get("conteudo") or "").strip() or _question_label(question_code)
 
-    party_by_name: dict[str, str] = {}
+    meta_by_name: dict[str, dict[str, str]] = {}
     for option in scenario.get("opcoes_resposta") or []:
         name = str(option.get("nome") or "").strip()
         party = option.get("partido") or {}
-        if name:
-            party_by_name[name] = str(party.get("sigla") or "").strip()
+        party_sigla = str(party.get("sigla") or "").strip()
+        raw_number = str(
+            option.get("numero")
+            or option.get("numero_candidato")
+            or option.get("numeroUrna")
+            or ""
+        ).strip()
 
-    choices, all_dates = _series_choices(scenario.get("data") or [], party_by_name)
+        if not raw_number and office in {"presidente", "governador"} and party_sigla:
+            key = party_sigla.upper().replace(" ", "")
+            raw_number = PARTY_NUMBERS.get(key, PARTY_NUMBERS.get(party_sigla.upper(), ""))
+
+        if name:
+            meta_by_name[name] = {"party": party_sigla, "number": raw_number}
+
+    choices, all_dates = _series_choices(scenario.get("data") or [], meta_by_name)
     latest_date = max(all_dates) if all_dates else ""
     if latest_date:
         for choice in choices:
@@ -361,7 +385,7 @@ def parse_g1_payload(
 
     strata: list[G1Stratum] = []
     for item in resultado.get("estratos") or []:
-        stratum_choices, _ = _series_choices(item.get("data") or [], party_by_name)
+        stratum_choices, _ = _series_choices(item.get("data") or [], meta_by_name)
         raw_margin = item.get("margem")
         try:
             stratum_margin = float(raw_margin) if raw_margin not in (None, "") else None
