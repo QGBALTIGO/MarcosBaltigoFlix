@@ -9,6 +9,8 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 
 from .config import Settings
 from .formatter import UF_NAMES, format_result
+from .g1_polls import G1Poll, G1PollClient
+from .poll_formatter import format_g1_history, format_g1_poll
 from .storage import Storage, milestone_for
 from .tse import TSEClient, VALID_UFS
 
@@ -28,11 +30,42 @@ def result_keyboard(settings: Settings, subscribed: bool = False, scope: str = "
     return InlineKeyboardMarkup(rows)
 
 
+def poll_keyboard(settings: Settings, poll: G1Poll) -> InlineKeyboardMarkup:
+    institute = poll.institute.lower()
+    rows = [
+        [InlineKeyboardButton(
+            "Ver histórico",
+            callback_data=f"g1h:{poll.office}:{poll.scope}:{institute}",
+        )],
+        [InlineKeyboardButton("Abrir pesquisa no G1", url=poll.source_url)],
+    ]
+    if settings.webapp_url:
+        rows.append([InlineKeyboardButton("Painel de pesquisas", web_app=WebAppInfo(settings.webapp_url))])
+    return InlineKeyboardMarkup(rows)
+
+
+def polls_menu_keyboard(settings: Settings) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton("Presidente • Datafolha", callback_data="g1:presidente:br:datafolha"),
+            InlineKeyboardButton("Presidente • Quaest", callback_data="g1:presidente:br:quaest"),
+        ],
+        [
+            InlineKeyboardButton("Governador • MS", callback_data="g1:governador:ms:auto"),
+            InlineKeyboardButton("Senador • MS", callback_data="g1:senador:ms:auto"),
+        ],
+    ]
+    if settings.webapp_url:
+        rows.append([InlineKeyboardButton("Ver todos os estados no painel", web_app=WebAppInfo(settings.webapp_url))])
+    return InlineKeyboardMarkup(rows)
+
+
 class ElectionBot:
-    def __init__(self, settings: Settings, tse: TSEClient, storage: Storage):
+    def __init__(self, settings: Settings, tse: TSEClient, storage: Storage, g1_polls: G1PollClient):
         self.settings = settings
         self.tse = tse
         self.storage = storage
+        self.g1_polls = g1_polls
         self.application: Application | None = None
 
     def _is_configured_admin(self, update: Update) -> bool:
@@ -107,6 +140,9 @@ class ElectionBot:
         app.add_handler(CommandHandler("alertas", self.alertas))
         app.add_handler(CommandHandler("status", self.status))
         app.add_handler(CommandHandler("publicar", self.publicar))
+        app.add_handler(CommandHandler("pesquisas", self.pesquisas))
+        app.add_handler(CommandHandler("pesquisa", self.pesquisa))
+        app.add_handler(CommandHandler("boletim", self.boletim))
         app.add_handler(CallbackQueryHandler(self.callback))
         self.application = app
         return app
@@ -124,6 +160,8 @@ class ElectionBot:
             "/acompanhar — mantém uma mensagem deste chat atualizada\n"
             "/parar — interrompe a atualização automática\n"
             "/alertas on|off — alertas de marcos de totalização\n"
+            "/pesquisas — pesquisas de Presidente, Governador e Senador\n"
+            "/pesquisa governador MS — pesquisa por cargo e UF\n"
             "/fonte — abre a fonte oficial"
         )
         if self.settings.is_simulation:
@@ -230,6 +268,138 @@ class ElectionBot:
         except Exception as exc:
             await update.effective_message.reply_text(f"Falha ao consultar TSE: {type(exc).__name__}")
 
+    async def pesquisas(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
+        await update.effective_message.reply_text(
+            "<b>Pesquisas eleitorais 2026</b>\n\n"
+            "Consulte pesquisas publicadas no especial do G1 para Presidente, Governador e Senador. "
+            "Os dados são exibidos com instituto, data, margem de erro e registro no TSE quando disponíveis.\n\n"
+            "<i>Pesquisa de intenção de voto não é apuração nem previsão de resultado.</i>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=polls_menu_keyboard(self.settings),
+        )
+
+    def _poll_args(self, args: list[str]) -> tuple[str, str, str | None]:
+        office = (args[0] if args else "presidente").lower().strip()
+        if office not in {"presidente", "governador", "senador"}:
+            raise ValueError("Cargo inválido. Use presidente, governador ou senador.")
+
+        institute: str | None = None
+        lowered = [x.lower().strip() for x in args[1:]]
+        for candidate in lowered:
+            if candidate in {"datafolha", "quaest"}:
+                institute = candidate
+
+        if office == "presidente":
+            scope = next((x for x in lowered if x == "br" or x in VALID_UFS), "br")
+            if institute is None:
+                institute = "datafolha"
+            return office, scope, institute
+
+        scope = next((x for x in lowered if x in VALID_UFS), "")
+        if not scope:
+            raise ValueError(
+                f"Informe a UF. Exemplo: /pesquisa {office} MS"
+            )
+        return office, scope, institute
+
+    async def _send_poll(
+        self,
+        message,
+        office: str,
+        scope: str,
+        institute: str | None,
+        *,
+        edit: bool = False,
+        history: bool = False,
+    ) -> None:
+        try:
+            poll = await self.g1_polls.fetch(office, scope, 1, institute)
+            text = format_g1_history(poll) if history else format_g1_poll(poll)
+            markup = poll_keyboard(self.settings, poll)
+            if edit:
+                await message.edit_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=markup,
+                    disable_web_page_preview=True,
+                )
+            else:
+                await message.reply_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=markup,
+                    disable_web_page_preview=True,
+                )
+        except Exception as exc:
+            log.exception("Erro consultando pesquisa G1")
+            text = (
+                "Não consegui consultar essa pesquisa no G1 agora. "
+                "A página pode não ter pesquisa disponível para esse cargo/UF/instituto.\n"
+                f"<code>{type(exc).__name__}</code>"
+            )
+            if edit:
+                try:
+                    await message.edit_text(text, parse_mode=ParseMode.HTML)
+                except BadRequest:
+                    pass
+            else:
+                await message.reply_text(text, parse_mode=ParseMode.HTML)
+
+    async def pesquisa(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
+        try:
+            office, scope, institute = self._poll_args(context.args)
+        except ValueError as exc:
+            await update.effective_message.reply_text(
+                f"{exc}\n\n"
+                "Exemplos:\n"
+                "/pesquisa presidente\n"
+                "/pesquisa presidente quaest\n"
+                "/pesquisa governador MS\n"
+                "/pesquisa governador SP datafolha\n"
+                "/pesquisa senador MS"
+            )
+            return
+        await self._send_poll(update.effective_message, office, scope, institute)
+
+    async def publish_g1_poll(self, poll: G1Poll, headline: str) -> bool:
+        if not self.application or not self.settings.channel_id:
+            log.warning("Canal ou aplicação Telegram indisponível para publicar pesquisa.")
+            return False
+        try:
+            await self.application.bot.send_message(
+                chat_id=self.settings.channel_id,
+                text=format_g1_poll(poll, headline=headline),
+                parse_mode=ParseMode.HTML,
+                reply_markup=poll_keyboard(self.settings, poll),
+                disable_web_page_preview=True,
+            )
+            return True
+        except TelegramError:
+            log.exception("Falha publicando pesquisa no canal %s", self.settings.channel_id)
+            return False
+
+    async def boletim(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        user_id = update.effective_user.id if update.effective_user else 0
+        if self.settings.admin_ids and user_id not in self.settings.admin_ids:
+            await update.effective_message.reply_text("Comando restrito aos administradores configurados.")
+            return
+        try:
+            poll = await self.g1_polls.fetch("presidente", "br", 1, "datafolha", force=True)
+            ok = await self.publish_g1_poll(
+                poll,
+                headline="BOLETIM • ÚLTIMA PESQUISA DISPONÍVEL",
+            )
+            await update.effective_message.reply_text(
+                "Boletim enviado ao canal." if ok else "Não consegui enviar o boletim ao canal."
+            )
+        except Exception as exc:
+            log.exception("Falha preparando boletim G1")
+            await update.effective_message.reply_text(f"Falha ao preparar boletim: {type(exc).__name__}")
+
     async def publicar(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.effective_user.id if update.effective_user else 0
         if not self.settings.admin_ids:
@@ -280,6 +450,22 @@ class ElectionBot:
                 await query.answer("Ainda não encontrei sua inscrição em @ResultadoEleicoes.", show_alert=True)
             return
         await query.answer()
+        if data.startswith("g1:"):
+            if not await self._guard_required_channel(update, context):
+                return
+            _, office, scope, institute = data.split(":", 3)
+            inst = None if institute == "auto" else institute
+            if query.message:
+                await self._send_poll(query.message, office, scope, inst, edit=True)
+            return
+        if data.startswith("g1h:"):
+            if not await self._guard_required_channel(update, context):
+                return
+            _, office, scope, institute = data.split(":", 3)
+            inst = None if institute in {"", "auto", "g1"} else institute
+            if query.message:
+                await self._send_poll(query.message, office, scope, inst, edit=True, history=True)
+            return
         if data.startswith("result:"):
             if not await self._guard_required_channel(update, context):
                 return
