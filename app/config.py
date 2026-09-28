@@ -60,12 +60,12 @@ class Settings:
     webapp_url: str
     channel_id: str
     required_channel: str
-    g1_daily_enabled: bool
-    g1_daily_hour: int
-    g1_daily_minute: int
-    g1_daily_institute: str
-    g1_monitor_minutes: int
-    timezone: str
+    timezone: str = "America/Campo_Grande"
+    g1_daily_enabled: bool = True
+    g1_daily_hour: int = 9
+    g1_daily_minute: int = 0
+    g1_monitor_minutes: int = 15
+    g1_daily_institute: str = "Datafolha"
 
     @property
     def is_simulation(self) -> bool:
@@ -119,10 +119,10 @@ def get_settings() -> Settings:
         webapp_url=os.getenv("WEBAPP_URL", "").strip(),
         channel_id=os.getenv("CHANNEL_ID", "").strip(),
         required_channel=os.getenv("REQUIRED_CHANNEL", os.getenv("CHANNEL_ID", "")).strip(),
+        timezone=os.getenv("TIMEZONE", "America/Campo_Grande").strip() or "America/Campo_Grande",
         g1_daily_enabled=_bool("G1_DAILY_ENABLED", True),
         g1_daily_hour=min(23, max(0, _int("G1_DAILY_HOUR", 9))),
         g1_daily_minute=min(59, max(0, _int("G1_DAILY_MINUTE", 0))),
+        g1_monitor_minutes=max(5, _int("G1_MONITOR_MINUTES", 15)),
         g1_daily_institute=os.getenv("G1_DAILY_INSTITUTE", "Datafolha").strip() or "Datafolha",
-        g1_monitor_minutes=max(0, _int("G1_MONITOR_MINUTES", 15)),
-        timezone=os.getenv("TIMEZONE", "America/Campo_Grande").strip() or "America/Campo_Grande",
     )

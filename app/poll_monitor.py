@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .bot import ElectionBot
@@ -16,93 +17,70 @@ log = logging.getLogger(__name__)
 async def g1_poll_loop(
     settings: Settings,
     client: G1PollClient,
-    bot: ElectionBot,
     storage: Storage,
+    bot: ElectionBot,
     stop_event: asyncio.Event,
 ) -> None:
     if not settings.g1_daily_enabled and settings.g1_monitor_minutes <= 0:
         return
 
+    tz = ZoneInfo(settings.timezone)
+    daily_key = "g1:daily:presidente:datafolha"
     specs = [
         ("presidente", "br", 1, "datafolha"),
         ("presidente", "br", 1, "quaest"),
     ]
-    fingerprints: dict[str, str] = {}
-
-    for office, scope, round_, institute in specs:
-        key = f"{office}:{scope}:{round_}:{institute}"
-        try:
-            poll = await client.fetch(office, scope, round_, institute, force=True)
-            state_key = f"g1:fingerprint:{key}"
-            previous = await storage.get_state(state_key)
-            if previous and previous != poll.fingerprint:
-                await bot.publish_g1_poll(poll, headline="NOVA PESQUISA PUBLICADA NO G1")
-            fingerprints[key] = poll.fingerprint
-            await storage.set_state(state_key, poll.fingerprint)
-            log.info(
-                "Monitor G1 iniciado: %s, rodada %s, fingerprint %s",
-                institute,
-                poll.latest_date,
-                poll.fingerprint,
-            )
-        except Exception:
-            log.exception("Falha inicializando monitor G1: %s", key)
-
-    tz = ZoneInfo(settings.timezone)
-    now = datetime.now(tz)
-    daily_target = now.replace(
-        hour=settings.g1_daily_hour,
-        minute=settings.g1_daily_minute,
-        second=0,
-        microsecond=0,
-    )
-    if daily_target <= now:
-        daily_target += timedelta(days=1)
-
-    monitor_interval = max(5, settings.g1_monitor_minutes) * 60
-    next_monitor = now + timedelta(seconds=monitor_interval)
+    last_monitor = 0.0
 
     while not stop_event.is_set():
         now = datetime.now(tz)
+        today = now.date().isoformat()
+        due = (now.hour, now.minute) >= (settings.g1_daily_hour, settings.g1_daily_minute)
 
-        if settings.g1_monitor_minutes > 0 and now >= next_monitor:
+        if settings.g1_daily_enabled and settings.channel_id and due:
+            try:
+                if await storage.get_state(daily_key) != today:
+                    poll = await client.fetch(
+                        "presidente", "br", 1, settings.g1_daily_institute, force=True
+                    )
+                    if await bot.publish_g1_poll(
+                        poll,
+                        headline="BOLETIM DIÁRIO • ÚLTIMA PESQUISA DISPONÍVEL",
+                    ):
+                        await storage.set_state(daily_key, today)
+                        await storage.set_state(
+                            "g1:fingerprint:presidente:br:datafolha",
+                            poll.fingerprint,
+                        )
+            except Exception:
+                log.exception("Falha publicando boletim diário de pesquisas")
+
+        interval = max(5, settings.g1_monitor_minutes) * 60
+        if time.monotonic() - last_monitor >= interval:
+            last_monitor = time.monotonic()
             for office, scope, round_, institute in specs:
-                key = f"{office}:{scope}:{round_}:{institute}"
+                state_key = f"g1:fingerprint:{office}:{scope}:{institute}"
                 try:
-                    poll = await client.fetch(office, scope, round_, institute, force=True)
-                    previous = fingerprints.get(key)
-                    if previous and previous != poll.fingerprint:
-                        await bot.publish_g1_poll(
+                    poll = await client.fetch(
+                        office, scope, round_, institute, force=True
+                    )
+                    previous = await storage.get_state(state_key)
+                    if previous is None:
+                        await storage.set_state(state_key, poll.fingerprint)
+                    elif previous != poll.fingerprint:
+                        if await bot.publish_g1_poll(
                             poll,
                             headline="NOVA PESQUISA PUBLICADA NO G1",
-                        )
-                    fingerprints[key] = poll.fingerprint
-                    await storage.set_state(f"g1:fingerprint:{key}", poll.fingerprint)
+                        ):
+                            await storage.set_state(state_key, poll.fingerprint)
                 except Exception:
-                    log.exception("Falha verificando nova pesquisa G1: %s", key)
-            next_monitor = datetime.now(tz) + timedelta(seconds=monitor_interval)
+                    log.exception(
+                        "Falha verificando nova pesquisa G1: %s/%s",
+                        institute,
+                        office,
+                    )
 
-        if settings.g1_daily_enabled and now >= daily_target:
-            try:
-                institute = settings.g1_daily_institute.lower()
-                poll = await client.fetch("presidente", "br", 1, institute, force=True)
-                sent = await bot.publish_g1_poll(
-                    poll,
-                    headline="BOLETIM DIÁRIO • ÚLTIMA PESQUISA DISPONÍVEL",
-                )
-                if sent:
-                    await storage.set_state("g1:daily:last_date", now.date().isoformat())
-                    log.info("Boletim diário G1 publicado para rodada %s", poll.latest_date)
-                    daily_target += timedelta(days=1)
-                else:
-                    daily_target = datetime.now(tz) + timedelta(minutes=30)
-            except Exception:
-                log.exception("Falha publicando boletim diário G1")
-                # Tenta novamente sem gerar uma sequência de mensagens duplicadas.
-                daily_target = datetime.now(tz) + timedelta(minutes=30)
-
-        delay = 60.0
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=delay)
+            await asyncio.wait_for(stop_event.wait(), timeout=45)
         except asyncio.TimeoutError:
             pass

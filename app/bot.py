@@ -23,6 +23,7 @@ def result_keyboard(settings: Settings, subscribed: bool = False, scope: str = "
         [InlineKeyboardButton("Mato Grosso do Sul", callback_data="result:ms"), InlineKeyboardButton("São Paulo", callback_data="result:sp")],
         [InlineKeyboardButton("Rio de Janeiro", callback_data="result:rj"), InlineKeyboardButton("Minas Gerais", callback_data="result:mg")],
         [InlineKeyboardButton("Parar atualização" if subscribed else "Acompanhar aqui", callback_data=f"stop:{scope}" if subscribed else f"subscribe:{scope}")],
+        [InlineKeyboardButton("Pesquisas G1", callback_data="g1:presidente:br:datafolha")],
     ]
     if settings.webapp_url:
         rows.append([InlineKeyboardButton("Painel ao vivo", web_app=WebAppInfo(settings.webapp_url))])
@@ -142,6 +143,8 @@ class ElectionBot:
         app.add_handler(CommandHandler("publicar", self.publicar))
         app.add_handler(CommandHandler("pesquisas", self.pesquisas))
         app.add_handler(CommandHandler("pesquisa", self.pesquisa))
+        app.add_handler(CommandHandler("governador", self.governador))
+        app.add_handler(CommandHandler("senador", self.senador))
         app.add_handler(CommandHandler("boletim", self.boletim))
         app.add_handler(CallbackQueryHandler(self.callback))
         self.application = app
@@ -162,6 +165,8 @@ class ElectionBot:
             "/alertas on|off — alertas de marcos de totalização\n"
             "/pesquisas — pesquisas de Presidente, Governador e Senador\n"
             "/pesquisa governador MS — pesquisa por cargo e UF\n"
+            "/governador MS — atalho para pesquisas de governador\n"
+            "/senador MS — atalho para pesquisas de senador\n"
             "/fonte — abre a fonte oficial"
         )
         if self.settings.is_simulation:
@@ -364,6 +369,32 @@ class ElectionBot:
             )
             return
         await self._send_poll(update.effective_message, office, scope, institute)
+
+    async def governador(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
+        if not context.args:
+            await update.effective_message.reply_text("Use /governador MS ou /governador SP datafolha.")
+            return
+        scope = context.args[0].lower().strip()
+        institute = context.args[1].lower().strip() if len(context.args) > 1 else None
+        if scope not in VALID_UFS:
+            await update.effective_message.reply_text("UF inválida. Exemplo: /governador MS")
+            return
+        await self._send_poll(update.effective_message, "governador", scope, institute)
+
+    async def senador(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._guard_required_channel(update, context):
+            return
+        if not context.args:
+            await update.effective_message.reply_text("Use /senador MS ou /senador RJ datafolha.")
+            return
+        scope = context.args[0].lower().strip()
+        institute = context.args[1].lower().strip() if len(context.args) > 1 else None
+        if scope not in VALID_UFS:
+            await update.effective_message.reply_text("UF inválida. Exemplo: /senador MS")
+            return
+        await self._send_poll(update.effective_message, "senador", scope, institute)
 
     async def publish_g1_poll(self, poll: G1Poll, headline: str) -> bool:
         if not self.application or not self.settings.channel_id:
