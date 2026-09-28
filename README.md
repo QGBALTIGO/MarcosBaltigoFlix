@@ -1,104 +1,125 @@
-# BaltigoFlix
+# Eleições 2026 Bot — Telegram + TSE
 
-Landing page oficial da BaltigoFlix, reconstruída como um projeto estático, responsivo e independente.
+Bot e painel web para acompanhar **resultados de Presidente nas Eleições 2026** usando os arquivos JSON oficiais de divulgação do Tribunal Superior Eleitoral (TSE).
 
-## O que mudou
+O projeto não calcula probabilidades, não projeta vencedor e não altera dados eleitorais. Ele reproduz os números e estados informados nos arquivos oficiais EA20 do TSE.
 
-A versão anterior era um HTML exportado de WordPress/Elementor e carregava arquivos, metadados e configurações de outro domínio. Esta reconstrução removeu essas dependências e criou uma implementação própria.
+## O que já vem pronto
 
-- HTML semântico e acessível;
-- identidade visual vetorial própria;
-- CSS responsivo sem framework;
-- JavaScript pequeno, sem bibliotecas externas;
-- sem WordPress, Elementor, jQuery, pixels ou fontes de terceiros;
-- SEO, sitemap, robots, manifesto e página 404;
-- Termos de Uso e Política de Privacidade;
-- preservação dos quatro checkouts afiliados;
-- propagação segura de parâmetros UTM para os checkouts;
-- suporte a `prefers-reduced-motion`;
-- funcionamento direto no GitHub Pages.
+- `/resultado` e `/brasil`: apuração presidencial nacional.
+- `/estado MS`: apuração presidencial por UF.
+- `/acompanhar [UF]`: cria uma mensagem que é **editada automaticamente** quando o TSE publica uma nova geração dos dados.
+- `/parar`: interrompe atualização naquele chat.
+- `/alertas on|off`: controla notificações nos marcos 10%, 25%, 50%, 75%, 90%, 95%, 99% e 100%.
+- `/publicar [@canal]`: publica em canal/grupo e mantém a mensagem atualizada (bot precisa ser administrador). Se `CHANNEL_ID` estiver configurado, `/publicar` sem argumento usa esse canal.
+- `/status` e `/fonte`.
+- Painel web responsivo em `/`.
+- API `GET /api/result?scope=br`.
+- `ETag` e `Last-Modified` para evitar retransmissões desnecessárias.
+- SQLite para persistir mensagens acompanhadas.
+- Ambiente de **simulação 2026** ativado por padrão.
+- Dockerfile + configuração para Railway.
 
-## Estrutura
+## 1. Criar o bot no Telegram
 
-```text
-.
-├── index.html
-├── 404.html
-├── termos-de-uso.html
-├── politica-de-privacidade.html
-├── manifest.webmanifest
-├── robots.txt
-├── sitemap.xml
-├── .nojekyll
-└── assets
-    ├── css
-    │   └── styles.css
-    ├── images
-    │   ├── brand.svg
-    │   ├── favicon.svg
-    │   └── social-cover.svg
-    └── js
-        └── main.js
-```
+No `@BotFather`:
 
-## Editar planos e checkouts
+1. `/newbot`
+2. Escolha nome e username.
+3. Copie o token.
 
-Os cards ficam na seção `#planos` do `index.html`. Os links preservados são:
-
-| Plano | Preço exibido | Checkout |
-| --- | ---: | --- |
-| Mensal | R$ 19,90 | `https://pay.cakto.com.br/9snqsP3?affiliate=gWviKfhb` |
-| Trimestral | R$ 49,90 | `https://pay.cakto.com.br/35znaim?affiliate=gWviKfhb` |
-| Semestral | R$ 79,90 | `https://pay.cakto.com.br/3eehsw8?affiliate=gWviKfhb` |
-| Anual | R$ 119,90 | `https://pay.cakto.com.br/u8e2fgg?affiliate=gWviKfhb` |
-
-Antes de divulgar, confirme no painel da Cakto se preços, parcelamentos, quantidade de telas e URLs permanecem vigentes.
-
-## Domínio próprio
-
-A versão atual usa como referência:
-
-```text
-https://qgbaltigo.github.io/MarcosBaltigoFlix/
-```
-
-Ao conectar um domínio próprio:
-
-1. crie um arquivo `CNAME` com o domínio;
-2. altere os endereços absolutos do `index.html`, `robots.txt`, `sitemap.xml`, `termos-de-uso.html` e `politica-de-privacidade.html`;
-3. gere uma imagem PNG de 1200 × 630 para compartilhamento social, caso a rede não aceite o SVG atual;
-4. confira HTTPS e redirecionamento entre `www` e domínio raiz.
-
-## Contato
-
-O site usa `suporte@baltigoflix.com`. Confirme se a caixa está ativa antes da publicação comercial. Caso o endereço correto seja outro, substitua-o no `index.html`, nos Termos e na Política de Privacidade.
-
-## Desenvolvimento local
-
-Não há etapa de compilação. Abra `index.html` em um servidor HTTP local. Exemplos:
+Depois:
 
 ```bash
-python -m http.server 8000
+cp .env.example .env
 ```
 
-ou
+Preencha:
+
+```env
+TELEGRAM_BOT_TOKEN=SEU_TOKEN
+```
+
+## 2. Rodar localmente
 
 ```bash
-npx serve .
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
 ```
 
-Depois, acesse `http://localhost:8000`.
+Abra `http://localhost:8000`.
 
-## Publicação
+## 3. Testar agora com o simulado do TSE
 
-O projeto foi preparado para GitHub Pages a partir da raiz da branch `main`.
+O padrão é:
 
-## Segurança e conformidade
+```env
+ELECTION_MODE=simulation
+```
 
-A página não distribui mídia nem armazena dados de pagamento. A oferta comercial e qualquer serviço associado devem possuir as autorizações, licenças e informações legais aplicáveis. Não use marcas ou conteúdos de terceiros sem autorização.
+Nesse modo o projeto usa o ambiente publicado pelo TSE para o simulado 2026 e todas as telas deixam explícito que os números **não são votos reais**.
 
-A branch `backup-fireplay-export-2026-09-03` preserva a versão antiga somente para recuperação e comparação. Ela não deve ser usada em produção.
+URL nacional usada no simulado:
 
-## Direitos
+```text
+https://resultados-sim.tse.jus.br/simulado/simulado2026/ele2026/21270/dados/br/br-c0001-e021270-u.json
+```
 
-Código, identidade e textos desta reconstrução: © 2026 BaltigoFlix. Todos os direitos reservados. Nenhuma licença pública é concedida por este repositório.
+## 4. Trocar para a eleição oficial
+
+No dia da eleição:
+
+```env
+ELECTION_MODE=official
+```
+
+O projeto passa a usar os parâmetros oficiais de 2026 (`resultados.tse.jus.br`, ambiente `oficial`, Eleição Geral Federal `6257`). Os parâmetros também podem ser sobrescritos individualmente no `.env` se o TSE publicar algum ajuste operacional.
+
+## 5. Railway
+
+Crie um serviço a partir deste repositório e adicione as variáveis:
+
+```env
+TELEGRAM_BOT_TOKEN=...
+ELECTION_MODE=simulation
+POLL_SECONDS=20
+WEBAPP_URL=https://seu-dominio.up.railway.app
+```
+
+O projeto usa o `PORT` fornecido pelo Railway automaticamente.
+
+### Persistência
+
+Para não perder o SQLite em redeploys, monte um Volume do Railway em `/app/data`. Alternativamente, troque o armazenamento por Postgres.
+
+## Comandos
+
+```text
+/start
+/resultado
+/brasil
+/estado MS
+/acompanhar
+/acompanhar MS
+/parar
+/alertas on
+/alertas off
+/status
+/fonte
+/publicar @SeuCanal
+```
+
+Para restringir `/publicar`, use:
+
+```env
+ADMIN_IDS=123456789,987654321
+CHANNEL_ID=@SeuCanal
+```
+
+## Fonte técnica
+
+O parser foi escrito para o leiaute **EA20 — Arquivo de resultado unificado — Eleições 2026**, cuja hierarquia é `carg -> agr -> par -> cand`, com dados de seções em `s`, eleitores em `e` e votos em `v`.
+
+A Justiça Eleitoral informa que a infraestrutura pública de resultados pode ser integrada por soluções próprias, respeitando limites e orientações técnicas. O projeto usa polling conservador (20 s por padrão) e validadores HTTP `ETag`/`Last-Modified`.
