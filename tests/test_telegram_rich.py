@@ -13,6 +13,7 @@ def _poll():
         sample_size=2002,
         field_period="22 e 23 de setembro",
         registrations=["BR-00304/2026"],
+        questions=[],
     )
     payload = {
         "resultado": {
@@ -22,7 +23,7 @@ def _poll():
                 "margem": 2,
                 "pergunta": {"codigo": "ESTIMULADA-PRE-002"},
                 "opcoes_resposta": [
-                    {"nome": "Candidato A", "partido": {"sigla": "AAA"}},
+                    {"nome": "Candidato A", "partido": {"sigla": "PL"}},
                     {"nome": "Candidato B", "partido": {"sigla": "BBB"}},
                     {"nome": "Indecisos", "partido": None},
                 ],
@@ -54,6 +55,7 @@ def test_rich_poll_uses_native_table_and_details():
     assert "<table bordered striped compact>" in rich
     assert '<th align="left">Candidato</th>' in rich
     assert "<b>40%</b>" in rich
+    assert "<b>Candidato A</b><br/>22 - PL" in rich
     assert "+1,0 p.p." in rich
     assert "<details><summary>Metodologia e registro</summary>" in rich
     assert "<tg-button-row" in rich
