@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
         if tg_app.updater:
             await tg_app.updater.start_polling(drop_pending_updates=False)
     monitor_task = asyncio.create_task(monitor_loop(settings, tse, storage, election_bot, stop_event))
-    g1_monitor_task = asyncio.create_task(g1_poll_loop(settings, g1_polls, election_bot, stop_event))
+    g1_monitor_task = asyncio.create_task(g1_poll_loop(settings, g1_polls, election_bot, storage, stop_event))
     yield
     stop_event.set()
     for task in (monitor_task, g1_monitor_task):
