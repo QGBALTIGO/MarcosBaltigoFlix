@@ -18,6 +18,11 @@ from .tse import TSEClient, VALID_UFS
 log = logging.getLogger(__name__)
 
 
+def bot_panel_deep_link(settings: Settings) -> str:
+    username = settings.bot_username.strip().lstrip("@") or "ResultadoEleicoes_Bot"
+    return f"https://t.me/{username}?start=painel"
+
+
 def result_keyboard(
     settings: Settings,
     subscribed: bool = False,
@@ -27,7 +32,7 @@ def result_keyboard(
     if external_chat:
         rows = [[InlineKeyboardButton("Abrir resultados do TSE", url=settings.public_results_url)]]
         if settings.webapp_url:
-            rows.insert(0, [InlineKeyboardButton("Painel ao vivo", url=settings.webapp_url)])
+            rows.insert(0, [InlineKeyboardButton("Painel ao vivo", url=bot_panel_deep_link(settings))])
         return InlineKeyboardMarkup(rows)
 
     rows = [
@@ -55,7 +60,7 @@ def poll_keyboard(settings: Settings, poll: G1Poll, external_chat: bool = False)
         rows.append([
             InlineKeyboardButton(
                 "Painel de pesquisas",
-                url=settings.webapp_url if external_chat else None,
+                url=bot_panel_deep_link(settings) if external_chat else None,
                 web_app=None if external_chat else WebAppInfo(settings.webapp_url),
             )
         ])
@@ -77,7 +82,7 @@ def polls_menu_keyboard(settings: Settings, external_chat: bool = False) -> Inli
         rows.append([
             InlineKeyboardButton(
                 "Ver todos os estados no painel",
-                url=settings.webapp_url if external_chat else None,
+                url=bot_panel_deep_link(settings) if external_chat else None,
                 web_app=None if external_chat else WebAppInfo(settings.webapp_url),
             )
         ])
@@ -176,6 +181,24 @@ class ElectionBot:
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._guard_required_channel(update, context):
             return
+
+        if context.args and context.args[0].strip().lower() == "painel":
+            if not self.settings.webapp_url:
+                await update.effective_message.reply_text("O painel está temporariamente indisponível.")
+                return
+            await update.effective_message.reply_text(
+                "<b>Painel completo • Eleições 2026</b>\n\n"
+                "Abra o painel dentro do Telegram para consultar apuração e pesquisas eleitorais.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton(
+                        "Abrir painel completo",
+                        web_app=WebAppInfo(self.settings.webapp_url),
+                    )
+                ]]),
+            )
+            return
+
         intro = (
             "<b>Eleições 2026 • Apuração</b>\n\n"
             "Acompanhe os resultados para Presidente usando dados publicados pelo Tribunal Superior Eleitoral. "
@@ -454,7 +477,7 @@ class ElectionBot:
             rich_html = build_g1_channel_rich_html(
                 poll,
                 headline=headline,
-                panel_url=self.settings.webapp_url,
+                panel_url=bot_panel_deep_link(self.settings),
             )
             await send_rich_html(
                 token=self.settings.telegram_bot_token,

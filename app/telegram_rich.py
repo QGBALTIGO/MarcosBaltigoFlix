@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from datetime import date
 from typing import Any
 
@@ -101,16 +102,26 @@ def build_g1_channel_rich_html(
 
     details: list[str] = []
     if poll.sample_size:
-        details.append(f"{poll.sample_size:,}".replace(",", ".") + " entrevistas")
-    if poll.margin_error_points is not None:
-        details.append(f"margem de erro ±{poll.margin_error_points:g} p.p.")
+        sample = f"{poll.sample_size:,}".replace(",", ".")
+        details.append(f"<b>Amostra:</b> {sample} entrevistas")
     if poll.field_period:
-        details.append(f"campo: {html.escape(poll.field_period)}")
-    if poll.registrations:
-        details.append("registro no TSE: " + html.escape(", ".join(poll.registrations)))
+        details.append(f"<b>Campo:</b> {html.escape(poll.field_period)}")
+    if poll.margin_error_points is not None:
+        details.append(f"<b>Margem de erro:</b> ±{poll.margin_error_points:g} p.p.")
 
-    details_html = " · ".join(details) if details else "Metodologia disponível na fonte."
-    methodology = html.escape(poll.methodology) if poll.methodology else ""
+    confidence = ""
+    if poll.methodology:
+        match = re.search(r"confian(?:ça|ca)[^0-9]{0,40}(\d{2,3})%", poll.methodology, re.I)
+        if match:
+            confidence = match.group(1) + "%"
+    if confidence:
+        details.append(f"<b>Nível de confiança:</b> {confidence}")
+
+    if poll.registrations:
+        label = "Registro no TSE" if len(poll.registrations) == 1 else "Registros no TSE"
+        details.append(f"<b>{label}:</b> " + html.escape(", ".join(poll.registrations)))
+
+    details_html = "<br/>".join(details) if details else "Metodologia disponível na fonte G1."
 
     buttons = []
     if panel_url:
@@ -146,7 +157,6 @@ def build_g1_channel_rich_html(
         secondary_table,
         "<details><summary>Metodologia e registro</summary>",
         f"<p>{details_html}</p>",
-        f"<p>{methodology}</p>" if methodology else "",
         "</details>",
         "<footer>Pesquisa de intenção de voto. Não é apuração nem previsão de resultado. "
         f"Fonte: G1 / {html.escape(poll.institute)}.</footer>",

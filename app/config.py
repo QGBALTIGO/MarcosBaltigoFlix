@@ -60,6 +60,7 @@ class Settings:
     webapp_url: str
     channel_id: str
     required_channel: str = ""
+    bot_username: str = "ResultadoEleicoes_Bot"
     timezone: str = "America/Campo_Grande"
     g1_daily_enabled: bool = True
     g1_daily_hour: int = 9
@@ -119,6 +120,7 @@ def get_settings() -> Settings:
         webapp_url=os.getenv("WEBAPP_URL", "").strip(),
         channel_id=os.getenv("CHANNEL_ID", "").strip(),
         required_channel=os.getenv("REQUIRED_CHANNEL", os.getenv("CHANNEL_ID", "")).strip(),
+        bot_username=os.getenv("BOT_USERNAME", "ResultadoEleicoes_Bot").strip().lstrip("@") or "ResultadoEleicoes_Bot",
         timezone=os.getenv("TIMEZONE", "America/Campo_Grande").strip() or "America/Campo_Grande",
         g1_daily_enabled=_bool("G1_DAILY_ENABLED", True),
         g1_daily_hour=min(23, max(0, _int("G1_DAILY_HOUR", 9))),
