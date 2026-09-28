@@ -59,7 +59,7 @@ class Settings:
     port: int
     webapp_url: str
     channel_id: str
-    required_channel: str
+    required_channel: str = ""
     timezone: str = "America/Campo_Grande"
     g1_daily_enabled: bool = True
     g1_daily_hour: int = 9
