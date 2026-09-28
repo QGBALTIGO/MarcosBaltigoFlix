@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import re
-from dataclasses import dataclass, asdict
+import time
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from typing import Any
+from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 
+import httpx
 from playwright.async_api import Browser, Playwright, async_playwright, TimeoutError as PlaywrightTimeoutError
 
 
@@ -18,6 +25,16 @@ STATE_SLUGS = {
 }
 OFFICES = {"presidente","governador","senador"}
 INSTITUTES = {"datafolha","quaest"}
+G1_API_MARKER = "/api/pesquisas-eleitorais/graficos/"
+
+
+@dataclass(slots=True)
+class G1HistoryPoint:
+    date: str
+    percentage: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass(slots=True)
@@ -25,9 +42,12 @@ class G1PollChoice:
     name: str
     party: str
     percentage: float
+    history: list[G1HistoryPoint]
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        data["history"] = [x.to_dict() for x in self.history]
+        return data
 
 
 @dataclass(slots=True)
@@ -37,14 +57,18 @@ class G1Poll:
     round: int
     institute: str
     question: str
-    margin_error: str
+    question_code: str
+    latest_date: str
+    margin_error_points: float | None
     sample_size: int | None
     field_period: str
     registrations: list[str]
     methodology: str
     choices: list[G1PollChoice]
     source_url: str
+    api_url: str
     fetched_at: str
+    fingerprint: str
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -52,22 +76,34 @@ class G1Poll:
         return data
 
 
+@dataclass(slots=True)
+class Discovery:
+    api_url: str
+    page_url: str
+    institute: str
+    methodology: str
+    sample_size: int | None
+    field_period: str
+    registrations: list[str]
+    methodology_margin: str
+
+
 def g1_url(office: str, scope: str = "br", round_: int = 1, institute: str | None = None) -> str:
     office = office.lower().strip()
     scope = scope.lower().strip()
     if office not in OFFICES:
-        raise ValueError("Cargo inválido")
+        raise ValueError("Cargo inválido. Use presidente, governador ou senador.")
     if round_ not in {1, 2}:
-        raise ValueError("Turno inválido")
+        raise ValueError("Turno inválido.")
     inst = (institute or "").lower().strip()
     if inst and inst not in INSTITUTES:
-        raise ValueError("Instituto inválido")
+        raise ValueError("Instituto inválido. Use Datafolha ou Quaest.")
 
     if office == "presidente" and scope == "br":
         base = "https://especiaisg1.globo/politica/eleicoes/2026/pesquisas-eleitorais"
     else:
         if scope not in STATE_SLUGS:
-            raise ValueError("UF inválida para este cargo")
+            raise ValueError("Informe uma UF válida para este cargo.")
         base = f"https://especiaisg1.globo/{scope}/{STATE_SLUGS[scope]}/eleicoes/2026/pesquisas-eleitorais"
 
     parts = [base, office, f"{round_}-turno"]
@@ -92,98 +128,180 @@ def _parse_methodology(lines: list[str]) -> tuple[str, str, int | None, str, lis
             end = i
             break
     methodology = " ".join(lines[idx + 1:end]).strip()
-    m_margin = re.search(r"margem de erro(?: máxima para o total da amostra)? (?:é|de) ([^.]+?)(?:,|\.)", methodology, re.I)
-    margin = m_margin.group(1).strip() if m_margin else ""
-    m_sample = re.search(r"([\d.]+) entrevistas|ouviu ([\d.]+) pessoas|entrevistou ([\d.]+) pessoas|entrevistou ([\d.]+) eleitores", methodology, re.I)
+    margin_match = re.search(
+        r"margem de erro(?: máxima para o total da amostra)?\s+(?:é|de)\s+([^.,]+(?:[.,]\d+)?\s+(?:pontos?|p\.p\.))",
+        methodology,
+        re.I,
+    )
+    margin = margin_match.group(1).strip() if margin_match else ""
     sample = None
-    if m_sample:
-        raw = next((g for g in m_sample.groups() if g), "")
-        if raw:
-            sample = int(raw.replace(".", ""))
-    m_period = re.search(r"(?:entre|nos dias) (?:os dias )?([^.]*)", methodology, re.I)
-    period = m_period.group(1).strip() if m_period else ""
-    regs = sorted(set(re.findall(r"\b(?:BR|AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)-\d{5}/2026\b", methodology, re.I)))
+    for pattern in (
+        r"([\d.]+) entrevistas",
+        r"ouviu ([\d.]+) pessoas",
+        r"entrevistou ([\d.]+) pessoas",
+        r"entrevistou ([\d.]+) eleitores",
+    ):
+        m = re.search(pattern, methodology, re.I)
+        if m:
+            sample = int(m.group(1).replace(".", ""))
+            break
+    period = ""
+    m_period = re.search(r"(?:entre|nos dias)\s+(?:os dias\s+)?([^.]*)", methodology, re.I)
+    if m_period:
+        period = m_period.group(1).strip()
+    regs = sorted(set(re.findall(
+        r"\b(?:BR|AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)-\d{5}/2026\b",
+        methodology,
+        re.I,
+    )))
     return methodology, margin, sample, period, regs
 
 
-def _parse_total(lines: list[str]) -> tuple[str, list[G1PollChoice]]:
-    # The rendered G1 page places the selected question before the first Total block.
-    question = ""
-    total_idx = -1
-    for i, line in enumerate(lines):
-        if line.lower() == "total":
-            total_idx = i
-            break
-    if total_idx < 0:
-        return question, []
-    for i in range(total_idx - 1, max(-1, total_idx - 12), -1):
-        if lines[i].lower() in {"estimulada","espontânea","votos válidos","estimulada - voto 1","estimulada - voto 2"} or "cenário" in lines[i].lower():
-            question = lines[i]
-            break
+def _question_label(code: str) -> str:
+    upper = code.upper()
+    if upper.startswith("ESTIMULADA"):
+        if "VOTO-1" in upper:
+            return "Estimulada — voto 1"
+        if "VOTO-2" in upper:
+            return "Estimulada — voto 2"
+        return "Estimulada"
+    if upper.startswith("ESPONT"):
+        return "Espontânea"
+    if "VALID" in upper:
+        return "Votos válidos"
+    if "REJE" in upper:
+        return "Rejeição"
+    if "SEGUNDO" in upper or "2T" in upper:
+        return "Segundo turno"
+    return code
 
-    end = len(lines)
-    for i in range(total_idx + 1, len(lines)):
-        if lines[i].lower() == "estratos":
-            end = i
-            break
-    seg = lines[total_idx + 1:end]
+
+def _percent(value: Any) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return round(number * 100.0 if abs(number) <= 1.0 else number, 2)
+
+
+def _parse_payload(payload: dict[str, Any], discovery: Discovery, office: str, scope: str, round_: int) -> G1Poll:
+    resultado = payload.get("resultado") or {}
+    scenarios = resultado.get("cenarios") or []
+    if not scenarios:
+        raise ValueError("O G1 não retornou cenários para esta pesquisa.")
+
+    scenario = next(
+        (x for x in scenarios if str(x.get("bandeira_slug", "")).lower() == "total"),
+        scenarios[0],
+    )
+    question = scenario.get("pergunta") or {}
+    question_code = str(question.get("codigo") or "")
+    question_label = str(question.get("conteudo") or "").strip() or _question_label(question_code)
+
+    party_by_name: dict[str, str] = {}
+    for option in scenario.get("opcoes_resposta") or []:
+        name = str(option.get("nome") or "").strip()
+        party = option.get("partido") or {}
+        if name:
+            party_by_name[name] = str(party.get("sigla") or "").strip()
+
     choices: list[G1PollChoice] = []
-    pct_re = re.compile(r"^(\d{1,3}(?:[.,]\d+)?)\s*%$")
-    party_re = re.compile(r"^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9-]{2,20}$")
-    noise = {
-        "image: candidato","candidato","margem de erro","em %","intenção de voto, em %",
-        "clique nos ícones abaixo para destacá-los nos gráficos:"
-    }
-
-    for i, line in enumerate(seg):
-        m = pct_re.match(line)
-        if not m:
+    all_dates: set[str] = set()
+    for series in scenario.get("data") or []:
+        name = str(series.get("option") or "").strip()
+        if not name:
             continue
-        percentage = float(m.group(1).replace(",", "."))
-        name = ""
-        party = ""
-        # Candidate label normally follows the percentage in rendered DOM.
-        for j in range(i + 1, min(len(seg), i + 7)):
-            cand = seg[j].strip()
-            low = cand.lower()
-            if not cand or low in noise or low.startswith("margem de erro"):
+        points: list[G1HistoryPoint] = []
+        for item in series.get("values") or []:
+            date = str(item.get("date") or "").strip()
+            if not date:
                 continue
-            if pct_re.match(cand):
-                break
-            if party_re.match(cand) and name:
-                party = cand
-                break
-            if not name:
-                name = cand.replace("Image: Candidato", "").strip()
-        if name and not any(c.name == name and c.percentage == percentage for c in choices):
-            choices.append(G1PollChoice(name=name, party=party, percentage=percentage))
+            day = date[:10]
+            all_dates.add(day)
+            points.append(G1HistoryPoint(day, _percent(item.get("value"))))
+        points.sort(key=lambda x: x.date)
+        if points:
+            choices.append(G1PollChoice(
+                name=name,
+                party=party_by_name.get(name, ""),
+                percentage=points[-1].percentage,
+                history=points,
+            ))
 
-    # Some chart implementations expose name first and percentage after it.
-    if not choices:
-        for i, line in enumerate(seg):
-            if line.lower().startswith("margem de erro") or line.lower() in noise:
-                continue
-            if party_re.match(line) and i > 0:
-                name = seg[i - 1]
-                for j in range(i + 1, min(len(seg), i + 5)):
-                    m = pct_re.match(seg[j])
-                    if m:
-                        choices.append(G1PollChoice(name=name, party=line, percentage=float(m.group(1).replace(",", "."))))
-                        break
-    return question or "Estimulada", choices
+    latest_date = max(all_dates) if all_dates else ""
+    if latest_date:
+        for choice in choices:
+            exact = next((x for x in reversed(choice.history) if x.date == latest_date), None)
+            if exact is not None:
+                choice.percentage = exact.percentage
+
+    # Mantém a ordem apresentada pela própria fonte; não cria ranking editorial.
+    margin = scenario.get("margem")
+    try:
+        margin_points = float(margin) if margin not in (None, "") else None
+    except (TypeError, ValueError):
+        margin_points = None
+
+    institute = discovery.institute or "G1"
+    fingerprint_raw = json.dumps({
+        "office": office,
+        "scope": scope,
+        "round": round_,
+        "institute": institute,
+        "question": question_code,
+        "latest_date": latest_date,
+        "choices": [(c.name, c.percentage) for c in choices],
+    }, ensure_ascii=False, sort_keys=True)
+    fingerprint = hashlib.sha256(fingerprint_raw.encode("utf-8")).hexdigest()[:24]
+
+    return G1Poll(
+        office=office,
+        scope=scope,
+        round=round_,
+        institute=institute,
+        question=question_label,
+        question_code=question_code,
+        latest_date=latest_date,
+        margin_error_points=margin_points,
+        sample_size=discovery.sample_size,
+        field_period=discovery.field_period,
+        registrations=discovery.registrations,
+        methodology=discovery.methodology,
+        choices=choices,
+        source_url=discovery.page_url,
+        api_url=discovery.api_url,
+        fetched_at=datetime.now(ZoneInfo("America/Campo_Grande")).isoformat(timespec="seconds"),
+        fingerprint=fingerprint,
+    )
 
 
 class G1PollClient:
-    def __init__(self) -> None:
+    def __init__(self, cache_seconds: int = 600, discovery_seconds: int = 21600) -> None:
+        self.cache_seconds = cache_seconds
+        self.discovery_seconds = discovery_seconds
+        self.http = httpx.AsyncClient(
+            timeout=30,
+            follow_redirects=True,
+            headers={
+                "Accept": "application/json,text/html;q=0.9,*/*;q=0.8",
+                "User-Agent": "Mozilla/5.0 (compatible; ResultadoEleicoesBot/1.0; +https://t.me/ResultadoEleicoes)",
+            },
+        )
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
-        self._lock = asyncio.Lock()
-        self._cache: dict[str, G1Poll] = {}
+        self._browser_lock = asyncio.Lock()
+        self._discoveries: dict[str, tuple[float, Discovery]] = {}
+        self._cache: dict[str, tuple[float, G1Poll]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    @staticmethod
+    def _key(office: str, scope: str, round_: int, institute: str | None) -> str:
+        return f"{office.lower()}:{scope.lower()}:{round_}:{(institute or '').lower()}"
 
     async def _ensure_browser(self) -> Browser:
         if self._browser:
             return self._browser
-        async with self._lock:
+        async with self._browser_lock:
             if self._browser:
                 return self._browser
             self._playwright = await async_playwright().start()
@@ -193,117 +311,132 @@ class G1PollClient:
             )
             return self._browser
 
-    async def fetch(self, office: str, scope: str = "br", round_: int = 1, institute: str | None = None, force: bool = False) -> G1Poll:
-        url = g1_url(office, scope, round_, institute)
-        if not force and url in self._cache:
-            return self._cache[url]
+    async def _discover(self, office: str, scope: str, round_: int, institute: str | None, force: bool = False) -> Discovery:
+        key = self._key(office, scope, round_, institute)
+        existing = self._discoveries.get(key)
+        now = time.monotonic()
+        if existing and not force and now - existing[0] < self.discovery_seconds:
+            return existing[1]
+
+        page_url = g1_url(office, scope, round_, institute)
         browser = await self._ensure_browser()
         context = await browser.new_context(
             locale="pt-BR",
             timezone_id="America/Campo_Grande",
             user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36",
-            viewport={"width": 1440, "height": 1200},
+            viewport={"width": 1280, "height": 900},
         )
         page = await context.new_page()
+        api_urls: list[str] = []
+        api_event = asyncio.Event()
+
+        def on_response(response) -> None:
+            if G1_API_MARKER in response.url:
+                api_urls.append(response.url)
+                api_event.set()
+
+        page.on("response", on_response)
         try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            response = await page.goto(page_url, wait_until="domcontentloaded", timeout=45000)
+            if response and response.status >= 400:
+                raise ValueError(f"Página do G1 retornou HTTP {response.status}.")
             try:
-                await page.wait_for_load_state("networkidle", timeout=18000)
-            except PlaywrightTimeoutError:
-                pass
-            await page.wait_for_timeout(3500)
+                await asyncio.wait_for(api_event.wait(), timeout=18)
+            except asyncio.TimeoutError:
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=8000)
+                except PlaywrightTimeoutError:
+                    pass
+            await page.wait_for_timeout(600)
             body = await page.locator("body").inner_text(timeout=15000)
             lines = _clean_lines(body)
-            methodology, margin, sample, period, regs = _parse_methodology(lines)
-            question, choices = _parse_total(lines)
-
-            # If the visible chart uses SVG/ARIA, collect explicit percentage/name pairs.
-            if not choices:
-                aria = await page.locator('[aria-label*="%"]').evaluate_all(
-                    """els => els.map(e => ({label:e.getAttribute('aria-label')||'', text:e.innerText||'', parent:(e.parentElement?.innerText||'').slice(0,300)}))"""
-                )
-                for item in aria:
-                    s = " ".join([item.get("label",""), item.get("text",""), item.get("parent","")])
-                    m = re.search(r"(\d{1,3}(?:[.,]\d+)?)\s*%", s)
-                    if not m:
-                        continue
-                    pct = float(m.group(1).replace(",", "."))
-                    clean = re.sub(r"\d{1,3}(?:[.,]\d+)?\s*%", "", s)
-                    parts = [x.strip() for x in re.split(r"[\n|•]", clean) if x.strip()]
-                    name = parts[0] if parts else ""
-                    if name and not any(c.name == name for c in choices):
-                        choices.append(G1PollChoice(name=name, party="", percentage=pct))
-
-            institute_name = (institute or "").title()
-            if not institute_name:
-                m = re.search(r"\b(Datafolha|Quaest)\b", methodology, re.I)
-                institute_name = m.group(1).title() if m else "G1"
-
-            from datetime import datetime
-            from zoneinfo import ZoneInfo
-            poll = G1Poll(
-                office=office.lower(),
-                scope=scope.lower(),
-                round=round_,
-                institute=institute_name,
-                question=question,
-                margin_error=margin,
+            methodology, methodology_margin, sample, period, regs = _parse_methodology(lines)
+            unique = list(dict.fromkeys(api_urls))
+            if not unique:
+                raise ValueError("A página do G1 não expôs a API de gráficos.")
+            # A página selecionada carrega primeiro o gráfico principal da pergunta corrente.
+            api_url = unique[0]
+            qs = parse_qs(urlparse(api_url).query)
+            actual_institute = (qs.get("instituto") or [institute or "G1"])[0]
+            discovery = Discovery(
+                api_url=api_url,
+                page_url=page_url,
+                institute=str(actual_institute),
+                methodology=methodology,
                 sample_size=sample,
                 field_period=period,
                 registrations=regs,
-                methodology=methodology,
-                choices=choices,
-                source_url=url,
-                fetched_at=datetime.now(ZoneInfo("America/Campo_Grande")).isoformat(timespec="seconds"),
+                methodology_margin=methodology_margin,
             )
-            self._cache[url] = poll
-            return poll
+            self._discoveries[key] = (now, discovery)
+            return discovery
         finally:
             await context.close()
 
+    async def fetch(
+        self,
+        office: str,
+        scope: str = "br",
+        round_: int = 1,
+        institute: str | None = None,
+        force: bool = False,
+    ) -> G1Poll:
+        office = office.lower().strip()
+        scope = scope.lower().strip()
+        inst = (institute or "").lower().strip() or None
+        # validates parameters before acquiring a lock
+        g1_url(office, scope, round_, inst)
+        key = self._key(office, scope, round_, inst)
+        now = time.monotonic()
+        cached = self._cache.get(key)
+        if cached and not force and now - cached[0] < self.cache_seconds:
+            return cached[1]
+
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            now = time.monotonic()
+            cached = self._cache.get(key)
+            if cached and not force and now - cached[0] < self.cache_seconds:
+                return cached[1]
+
+            discovery = await self._discover(office, scope, round_, inst, force=False)
+            try:
+                response = await self.http.get(discovery.api_url, headers={"Cache-Control": "no-cache"})
+                response.raise_for_status()
+            except httpx.HTTPStatusError:
+                discovery = await self._discover(office, scope, round_, inst, force=True)
+                response = await self.http.get(discovery.api_url, headers={"Cache-Control": "no-cache"})
+                response.raise_for_status()
+
+            poll = _parse_payload(response.json(), discovery, office, scope, round_)
+            self._cache[key] = (time.monotonic(), poll)
+            return poll
+
     async def debug(self, url: str) -> dict[str, Any]:
         browser = await self._ensure_browser()
-        context = await browser.new_context(locale="pt-BR", viewport={"width":1440,"height":1200})
+        context = await browser.new_context(locale="pt-BR", viewport={"width":1280,"height":900})
         page = await context.new_page()
         responses: list[str] = []
-        page.on("response", lambda r: responses.append(r.url) if any(x in r.url.lower() for x in ("json","api","pesquis","elei")) else None)
+        page.on("response", lambda r: responses.append(r.url) if G1_API_MARKER in r.url else None)
         try:
             response = await page.goto(url, wait_until="domcontentloaded", timeout=45000)
             try:
                 await page.wait_for_load_state("networkidle", timeout=18000)
             except PlaywrightTimeoutError:
                 pass
-            await page.wait_for_timeout(3500)
             body = await page.locator("body").inner_text()
-            lines = _clean_lines(body)
-            percent_contexts = await page.locator("body *").evaluate_all(
-                """els => els.filter(e => /^\\s*\\d+(?:[.,]\\d+)?%\\s*$/.test((e.innerText||'').trim())).slice(0,80).map(e => ({tag:e.tagName, cls:e.className||'', text:(e.innerText||'').trim(), parent:(e.parentElement?.innerText||'').slice(0,250)}))"""
-            )
-            scripts = await page.locator("script[src]").evaluate_all("els => els.map(e=>e.src)")
-            api_payloads = []
-            for api_url in list(dict.fromkeys(responses)):
-                if "/api/pesquisas-eleitorais/" not in api_url:
-                    continue
-                try:
-                    api_resp = await context.request.get(api_url, timeout=20000)
-                    payload = await api_resp.json()
-                    api_payloads.append({"url": api_url, "status": api_resp.status, "payload": payload})
-                except Exception as exc:
-                    api_payloads.append({"url": api_url, "error": type(exc).__name__})
             return {
                 "status": response.status if response else None,
                 "url": page.url,
                 "title": await page.title(),
-                "lines": lines[:500],
-                "percent_contexts": percent_contexts[:80],
-                "scripts": scripts[:80],
-                "interesting_responses": list(dict.fromkeys(responses))[:120],
-                "api_payloads": api_payloads[:10],
+                "api_urls": list(dict.fromkeys(responses)),
+                "lines": _clean_lines(body)[:500],
             }
         finally:
             await context.close()
 
     async def close(self) -> None:
+        await self.http.aclose()
         if self._browser:
             await self._browser.close()
             self._browser = None
