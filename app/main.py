@@ -19,6 +19,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+# Evita que URLs da Bot API (que contêm o token) apareçam nos logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 settings = get_settings()
 storage = Storage(settings.database_path)
