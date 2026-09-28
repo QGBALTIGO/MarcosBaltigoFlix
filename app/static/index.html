@@ -2,124 +2,126 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0b0d10">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#090d12">
+<meta name="color-scheme" content="dark">
 <title>Resultado Eleições 2026</title>
-<style>
-:root{color-scheme:dark;--bg:#0b0d10;--card:#14171c;--soft:#1c2027;--line:#2a2f38;--text:#f7f8fa;--muted:#9da6b3;--accent:#f2f3f5}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:min(1080px,calc(100% - 28px));margin:32px auto 80px}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.16em;color:var(--muted)}h1{font-size:clamp(32px,6vw,58px);line-height:1;margin:8px 0 12px;letter-spacing:-.05em}.sub{max-width:720px;color:var(--muted)}.badge{border:1px solid var(--line);border-radius:999px;padding:8px 12px;color:var(--muted);white-space:nowrap}.tabs{display:flex;gap:8px;margin:26px 0 18px}.tabs button,.controls button,.controls select{border:1px solid var(--line);background:var(--soft);color:var(--text);padding:11px 14px;border-radius:12px;font:inherit}.tabs button{cursor:pointer}.tabs button.active{background:var(--accent);color:#101216}.view{display:none}.view.active{display:block}.notice,.panel{border:1px solid var(--line);background:var(--card);border-radius:18px;padding:18px;margin:12px 0}.notice{color:var(--muted)}.warning{border-color:#665022;background:#271f11;color:#f1ddb1}.controls{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0}.controls button{cursor:pointer}.grid{display:grid;gap:10px}.candidate{border:1px solid var(--line);background:#101318;border-radius:15px;padding:15px}.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.name{font-size:17px;font-weight:700}.candidate-id{margin-top:3px;font-size:13px;color:var(--muted);font-weight:600}.pct{font-size:22px;font-weight:800;letter-spacing:-.03em}.muted{color:var(--muted)}.bar{height:10px;background:#232832;border-radius:30px;overflow:hidden;margin:12px 0}.bar>div{height:100%;background:var(--accent);width:0}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{border:1px solid var(--line);border-radius:14px;padding:13px}.stat strong{display:block;font-size:18px}.meta{display:flex;gap:10px;flex-wrap:wrap}.pill{border:1px solid var(--line);border-radius:999px;padding:6px 9px;color:var(--muted)}a{color:inherit}.error{border-color:#6c3232;background:#281616}.footer{margin-top:24px;color:var(--muted);font-size:13px}@media(max-width:700px){main{margin-top:20px}.top{display:block}.badge{display:inline-block;margin-top:12px}.stats{grid-template-columns:1fr 1fr}.row{align-items:flex-start}.pct{font-size:19px}}
-</style>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<main>
-<div class="top"><div><div class="eyebrow">Resultado Eleições</div><h1>Eleições 2026</h1><div class="sub">Apuração oficial do TSE e pesquisas eleitorais publicadas no especial do G1 em áreas separadas.</div></div><div class="badge" id="clock">Carregando…</div></div>
+<div class="app">
+  <header class="topbar">
+    <div class="title"><h1>Eleições 2026</h1><p>1º turno • acompanhamento eleitoral</p></div>
+    <button class="icon-btn" id="refreshBtn" aria-label="Atualizar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9A7 7 0 0 1 18.4 6L20 11M4 13l1.6 5A7 7 0 0 0 17.9 15"/></svg>
+    </button>
+  </header>
 
-<div class="tabs">
-<button class="active" data-tab="tse">Apuração TSE</button>
-<button data-tab="g1">Pesquisas G1</button>
+  <div class="location-bar" id="locationTrigger">
+    <span class="location-dot">●</span><span class="location-name" id="locationName">Brasil</span><span class="chev">›</span>
+  </div>
+
+  <main class="content">
+    <div class="sim-warning" id="simWarning">Ambiente de simulação do TSE. Estes números não representam votos reais.</div>
+
+    <section id="resultsView">
+      <article class="card summary animate">
+        <div class="summary-main">
+          <div class="gauge-wrap">
+            <svg class="gauge" viewBox="0 0 240 142" aria-hidden="true">
+              <path class="track" pathLength="100" d="M20 122 A100 100 0 0 1 220 122"/>
+              <path id="gaugeValid" class="valid" pathLength="100" d="M20 122 A100 100 0 0 1 220 122"/>
+              <path id="gaugeNull" class="null" pathLength="100" d="M20 122 A100 100 0 0 1 220 122"/>
+              <path id="gaugeBlank" class="blank" pathLength="100" d="M20 122 A100 100 0 0 1 220 122"/>
+            </svg>
+            <div class="gauge-center"><b>VOTAÇÃO</b><span id="totalVotes">— votos</span></div>
+          </div>
+          <div class="valid-share">Votos a candidatos concorrentes · <b id="validShare">—</b></div>
+          <div class="metrics3">
+            <div class="metric"><div class="metric-top"><i class="swatch" style="background:#244a7e"></i><strong id="validVotes">—</strong></div><small>Votos válidos</small></div>
+            <div class="metric"><div class="metric-top"><i class="swatch" style="background:var(--red)"></i><strong id="voidVotes">—</strong></div><small>Anulados</small></div>
+            <div class="metric"><div class="metric-top"><i class="swatch" style="background:var(--orange)"></i><strong id="subJudiceVotes">—</strong></div><small>Sub judice</small></div>
+          </div>
+          <div class="submetrics">
+            <div class="submetric"><i class="swatch" style="background:#8d73d1"></i><div><strong id="nullVotes">—</strong><span>Nulos</span></div></div>
+            <div class="submetric"><i class="swatch" style="background:var(--pink)"></i><div><strong id="blankVotes">—</strong><span>Em branco</span></div></div>
+          </div>
+        </div>
+        <button class="analysis-btn" id="analysisBtn">Ver análise completa <span>›</span></button>
+      </article>
+
+      <div class="section-head"><div class="section-title">Cargos</div></div>
+      <div class="office-chips" id="officeChips">
+        <button class="chip active" data-office="presidente">Presidente</button>
+        <button class="chip" data-office="governador">Governador</button>
+        <button class="chip" data-office="senador">Senador</button>
+        <button class="chip" data-office="federal">Deputado Federal</button>
+        <button class="chip" data-office="estadual">Deputado Estadual/Distrital</button>
+      </div>
+      <div class="section-head"><div class="section-title" id="officeTitle">Presidente</div><small class="muted" id="sectionsInfo">—</small></div>
+      <div id="candidateArea" class="candidates"><div class="card coming skeleton" style="height:220px"></div></div>
+    </section>
+
+    <section id="pollsView" hidden>
+      <div class="section-head"><div><div class="section-title">Pesquisas eleitorais</div><div class="muted" style="margin-top:4px">Pesquisa de intenção de voto não é apuração.</div></div></div>
+      <div class="poll-controls">
+        <select id="pollOffice"><option value="presidente">Presidente</option><option value="governador">Governador</option><option value="senador">Senador</option></select>
+        <select id="pollInstitute"><option value="datafolha">Datafolha</option><option value="quaest">Quaest</option><option value="">Automático</option></select>
+        <select id="pollQuestion"><option value="">Pergunta padrão</option></select>
+        <select id="pollStratum"><option value="">Total</option></select>
+      </div>
+      <div id="pollMeta" class="muted" style="margin:0 0 14px"></div>
+      <div id="pollList"><div class="card coming skeleton" style="height:170px"></div></div>
+      <details class="card detail-card method-card" id="methodology" style="display:none"><summary>Metodologia e registro</summary><div class="method-lines" id="methodLines"></div></details>
+    </section>
+
+    <section id="favoritesView" hidden>
+      <div class="section-head"><div class="section-title">Favoritos</div></div>
+      <div id="favoritesList" class="candidates"></div>
+    </section>
+  </main>
 </div>
 
-<section id="tse" class="view active">
-<div id="simWarning" class="notice warning" style="display:none"><strong>Simulação do TSE.</strong> Estes números não representam votos reais.</div>
-<div class="controls"><select id="tseScope"></select><button id="tseRefresh">Atualizar agora</button></div>
-<div class="panel"><div class="row"><div><div class="muted">Seções totalizadas</div><strong id="tseProgress" style="font-size:28px">—</strong></div><div id="tseSections" class="muted">—</div></div><div class="bar"><div id="tseBar"></div></div></div>
-<div id="tseCandidates" class="grid"><div class="panel">Carregando…</div></div>
-<div class="stats">
-<div class="stat"><span class="muted">Votos válidos</span><strong id="valid">—</strong></div>
-<div class="stat"><span class="muted">Brancos</span><strong id="blank">—</strong></div>
-<div class="stat"><span class="muted">Nulos</span><strong id="null">—</strong></div>
-<div class="stat"><span class="muted">Comparecimento</span><strong id="turnout">—</strong></div>
-<div class="stat"><span class="muted">Abstenção</span><strong id="abstention">—</strong></div>
-<div class="stat"><span class="muted">Eleitorado</span><strong id="electorate">—</strong></div>
-</div>
-<div class="footer">Fonte: <a id="tseSource" href="https://resultados.tse.jus.br/" target="_blank" rel="noreferrer">TSE</a>.</div>
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-view="results"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg><span>Resultados</span></button>
+  <button class="nav-btn" data-view="polls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/></svg><span>Pesquisas</span></button>
+  <button class="nav-btn" data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg><span>Favoritos</span></button>
+</nav>
+
+<div class="overlay" id="overlay"></div>
+<section class="sheet" id="locationSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head"><h2>Selecionar local</h2><button class="close-btn" data-close>×</button></div>
+  <div class="sheet-scroll">
+    <label class="search"><span>⌕</span><input id="stateSearch" placeholder="Buscar estado..." autocomplete="off"></label>
+    <div class="loc-auto" id="geoBtn"><div class="circle">➤</div><div><b>Usar minha localização</b><small>Detectar estado automaticamente</small></div><span class="chev">›</span></div>
+    <div class="state-list" id="stateList"></div>
+  </div>
 </section>
 
-<section id="g1" class="view">
-<div class="notice"><strong>Pesquisa eleitoral não é apuração.</strong> Os percentuais abaixo reproduzem levantamentos publicados no especial do G1, com instituto, rodada, margem de erro e registro no TSE quando disponíveis.</div>
-<div class="controls">
-<select id="office"><option value="presidente">Presidente</option><option value="governador">Governador</option><option value="senador">Senador</option></select>
-<select id="pollScope"></select>
-<select id="institute"><option value="datafolha">Datafolha</option><option value="quaest">Quaest</option><option value="">Automático</option></select>
-<select id="question"><option value="">Pergunta padrão</option></select>
-<select id="stratum"><option value="">Total da amostra</option></select>
-<button id="pollRefresh">Consultar</button>
-</div>
-<div id="pollMeta" class="meta"></div>
-<div id="pollChoices" class="grid"><div class="panel">Selecione uma pesquisa.</div></div>
-<div id="methodology" class="panel" style="display:none"></div>
-<div class="footer">Fonte: <a id="g1Source" href="https://especiaisg1.globo/politica/eleicoes/2026/pesquisas-eleitorais/" target="_blank" rel="noreferrer">Especial de pesquisas do G1</a>.</div>
+<section class="fullscreen" id="analysisModal">
+  <header class="modal-top"><button class="close-btn" data-full-close>×</button><h2>Análise avançada</h2><span></span></header>
+  <div class="analysis-body">
+    <div class="place-pill" id="analysisPlace">● Brasil</div>
+    <div class="analysis-card"><h3>Distribuição dos votos</h3><div class="donut" id="candidateDonut"></div><div class="legend" id="donutLegend"></div></div>
+    <div class="analysis-card"><h3>Estatísticas da eleição</h3><div class="muted" id="eligibleText">— eleitores aptos</div><div class="participation"><i id="participationBar"></i><b id="participationLabel">Participação: —</b></div><div class="stats2" id="analysisStats"></div></div>
+    <div class="muted" style="text-align:center;padding:10px 0">ⓘ Dados reproduzidos da fonte oficial configurada no sistema.</div>
+  </div>
 </section>
-</main>
-<script>
-var states={br:"Brasil",ac:"Acre",al:"Alagoas",ap:"Amapá",am:"Amazonas",ba:"Bahia",ce:"Ceará",df:"Distrito Federal",es:"Espírito Santo",go:"Goiás",ma:"Maranhão",mt:"Mato Grosso",ms:"Mato Grosso do Sul",mg:"Minas Gerais",pa:"Pará",pb:"Paraíba",pr:"Paraná",pe:"Pernambuco",pi:"Piauí",rj:"Rio de Janeiro",rn:"Rio Grande do Norte",rs:"Rio Grande do Sul",ro:"Rondônia",rr:"Roraima",sc:"Santa Catarina",sp:"São Paulo",se:"Sergipe",to:"Tocantins"};
-var fmt=function(n){return new Intl.NumberFormat("pt-BR").format(Number(n||0))};
-var pct=function(n){return Number(n||0).toLocaleString("pt-BR",{minimumFractionDigits:0,maximumFractionDigits:2})+"%"};
-var esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})};
-var lastPoll=null,catalog=null;
-var officeNames={presidente:"Presidente",governador:"Governador",senador:"Senador"};
-function fillSelect(el,includeBR){el.innerHTML="";Object.keys(states).forEach(function(k){if(k==="br"&&!includeBR)return;var o=document.createElement("option");o.value=k;o.textContent=states[k];el.appendChild(o)})}
-fillSelect(document.querySelector("#tseScope"),true);fillSelect(document.querySelector("#pollScope"),true);document.querySelector("#pollScope").value="br";
 
-document.querySelectorAll(".tabs button").forEach(function(btn){btn.addEventListener("click",function(){document.querySelectorAll(".tabs button").forEach(function(b){b.classList.remove("active")});document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active")});btn.classList.add("active");document.querySelector("#"+btn.dataset.tab).classList.add("active");if(btn.dataset.tab==="g1")loadPoll()})});
+<section class="fullscreen" id="candidateModal">
+  <header class="modal-top"><button class="close-btn" data-full-close>×</button><h2 id="detailOffice">Candidato</h2><button class="heart-btn" id="detailHeart">♡</button></header>
+  <div class="detail-body">
+    <div class="detail-hero"><div id="detailPhotoWrap"></div><div><div class="detail-num" id="detailNumber">—</div><div class="detail-name" id="detailName">—</div><div class="detail-party" id="detailParty">—</div><div class="detail-place" id="detailPlace">—</div><span class="detail-status" id="detailStatus" style="display:none"></span></div></div>
+    <section class="detail-section"><h3>Resultado atual</h3><div class="detail-card result-detail" id="detailResult"></div></section>
+    <section class="detail-section" id="viceSection"><h3>Vice / suplente</h3><div class="detail-card vice" id="detailVice"></div></section>
+    <section class="detail-section"><h3>Informações pessoais</h3><div class="placeholder-grid"><div><small>Nome completo</small><b id="personalFullName">Dados a integrar</b></div><div><small>Nascimento</small><b>—</b></div><div><small>Local</small><b>—</b></div><div><small>Escolaridade</small><b>—</b></div><div><small>Ocupação</small><b>—</b></div><div><small>Estado civil</small><b>—</b></div></div></section>
+    <section class="detail-section"><h3>Bens declarados</h3><div class="detail-card empty-detail"><b>Estrutura pronta para patrimônio</b><br>Esta área receberá patrimônio total, lista de bens e gráfico quando a base de candidaturas do TSE for conectada ao backend.</div></section>
+    <section class="detail-section"><h3>Finanças da campanha</h3><div class="detail-card empty-detail"><b>Estrutura pronta para prestação de contas</b><br>Esta área receberá receitas, despesas e principais doadores quando a rota de contas eleitorais estiver conectada.</div></section>
+  </div>
+</section>
 
-async function loadTSE(){
-try{
-var scope=document.querySelector("#tseScope").value;var r=await fetch("/api/result?scope="+scope,{cache:"no-store"});var d=await r.json();if(!r.ok)throw new Error(d.detail||"Falha");
-document.querySelector("#simWarning").style.display=d.simulation?"block":"none";document.querySelector("#clock").textContent=(d.totalization_date||"")+" "+(d.totalization_time||"");document.querySelector("#tseProgress").textContent=pct(d.sections_counted_pct);document.querySelector("#tseBar").style.width=Math.max(0,Math.min(100,d.sections_counted_pct))+"%";document.querySelector("#tseSections").textContent=fmt(d.sections_counted)+" de "+fmt(d.sections_total);
-document.querySelector("#valid").textContent=fmt(d.valid_votes);document.querySelector("#blank").textContent=fmt(d.blank_votes);document.querySelector("#null").textContent=fmt(d.null_votes);document.querySelector("#turnout").textContent=fmt(d.turnout)+" • "+pct(d.turnout_pct);document.querySelector("#abstention").textContent=fmt(d.abstention)+" • "+pct(d.abstention_pct);document.querySelector("#electorate").textContent=fmt(d.electorate_total);document.querySelector("#tseSource").textContent=d.source_label;document.querySelector("#tseSource").href=d.source_url;
-document.querySelector("#tseCandidates").innerHTML=(d.candidates||[]).map(function(c){return '<article class="candidate"><div class="row"><div class="name">'+(c.number?esc(c.number)+" · ":"")+esc(c.ballot_name)+(c.party?' <span class="muted">· '+esc(c.party)+'</span>':"")+'</div><div class="pct">'+pct(c.percentage)+'</div></div><div class="muted">'+fmt(c.votes)+' votos</div></article>'}).join("")||'<div class="panel">Ainda não há votação disponível.</div>';
-}catch(e){document.querySelector("#tseCandidates").innerHTML='<div class="panel error">Falha consultando o TSE: '+esc(e.message)+'</div>'}
-}
-
-function syncInstituteOptions(){
-var office=document.querySelector("#office").value,scope=document.querySelector("#pollScope").value,sel=document.querySelector("#institute"),current=sel.value;
-var available=[];if(catalog){var cargo=(catalog.cargos||[]).find(function(x){return x.nome===officeNames[office]});var loc=cargo&&(cargo.localidades||[]).find(function(x){return String(x.uf).toLowerCase()===scope});available=loc&&loc.turnos&&loc.turnos["1-turno"]?loc.turnos["1-turno"].map(function(x){return x.nome}):[]}
-sel.innerHTML='<option value="">Automático</option>';available.forEach(function(name){var o=document.createElement("option");o.value=String(name).toLowerCase();o.textContent=name;sel.appendChild(o)});
-if(Array.from(sel.options).some(function(o){return o.value===current}))sel.value=current;else if(office==="presidente"&&scope==="br"&&available.some(function(x){return x.toLowerCase()==="datafolha"}))sel.value="datafolha";else sel.value="";
-}
-async function loadCatalog(){try{var r=await fetch("/api/g1/catalog",{cache:"no-store"});if(r.ok){catalog=await r.json();syncInstituteOptions()}}catch(e){}}
-function adjustPollScope(){var office=document.querySelector("#office").value;var s=document.querySelector("#pollScope");var current=s.value;if(office==="presidente"){fillSelect(s,true);s.value=states[current]?current:"br"}else{fillSelect(s,false);s.value=current&&current!=="br"?current:"ms"}syncInstituteOptions()}
-
-function fillPollFilters(d){
-var q=document.querySelector("#question"),current=q.value;q.innerHTML="";
-(d.available_questions||[]).forEach(function(item){var o=document.createElement("option");o.value=item.code;o.textContent=item.label;q.appendChild(o)});
-if(!q.options.length){var o=document.createElement("option");o.value=d.question_code||"";o.textContent=d.question||"Pergunta padrão";q.appendChild(o)}
-q.value=(d.available_questions||[]).some(function(x){return x.code===current})?current:(d.question_code||q.options[0].value);
-
-var s=document.querySelector("#stratum"),selected=s.value;s.innerHTML='<option value="">Total da amostra</option>';
-var groups={};(d.strata||[]).forEach(function(item){var key=item.group||"Outros";if(!groups[key])groups[key]=[];groups[key].push(item)});
-var order=(d.strata_order||[]).map(function(x){return String(x).toLowerCase()});
-Object.keys(groups).sort(function(a,b){var ai=order.indexOf(a.toLowerCase()),bi=order.indexOf(b.toLowerCase());if(ai<0)ai=999;if(bi<0)bi=999;return ai-bi||a.localeCompare(b)}).forEach(function(group){
-var og=document.createElement("optgroup");og.label=group;groups[group].forEach(function(item){var o=document.createElement("option");o.value=(item.group_slug||group)+"|"+item.label;o.textContent=item.label;og.appendChild(o)});s.appendChild(og)});
-if(Array.from(s.options).some(function(o){return o.value===selected}))s.value=selected;
-}
-
-function renderPoll(){
-var d=lastPoll;if(!d)return;var selected=document.querySelector("#stratum").value;var stratum=null;
-if(selected){stratum=(d.strata||[]).find(function(item){return ((item.group_slug||item.group)+"|"+item.label)===selected})||null}
-var choices=stratum?stratum.choices:(d.choices||[]);var margin=stratum?stratum.margin_error_points:d.margin_error_points;
-document.querySelector("#clock").textContent="Rodada "+(d.latest_date||"—");document.querySelector("#g1Source").href=d.source_url||"#";
-var meta=document.querySelector("#pollMeta");meta.innerHTML='<span class="pill">'+esc(states[d.scope]||d.scope.toUpperCase())+'</span><span class="pill">'+esc(d.institute)+'</span><span class="pill">'+esc(d.question)+'</span>'+(stratum?'<span class="pill">'+esc(stratum.group)+": "+esc(stratum.label)+'</span>':"")+'<span class="pill">'+esc(d.latest_date||"")+'</span>';
-document.querySelector("#pollChoices").innerHTML=(choices||[]).map(function(c){var h=(c.history||[]).slice().sort(function(a,b){return a.date.localeCompare(b.date)});var delta="";if(h.length>1){var x=Number(h[h.length-1].percentage)-Number(h[h.length-2].percentage);delta=Math.abs(x)<0.05?"sem variação":(x>0?"+":"")+x.toFixed(1).replace(".",",")+" p.p. vs. rodada anterior"}var ident=[c.number,c.party].filter(Boolean).map(esc).join(" - ");return '<article class="candidate"><div class="row"><div><div class="name">'+esc(c.name)+'</div>'+(ident?'<div class="candidate-id">'+ident+'</div>':"")+'</div><div class="pct">'+pct(c.percentage)+'</div></div>'+(delta?'<div class="muted">'+esc(delta)+'</div>':"")+'</article>'}).join("")||'<div class="panel">Sem dados para esta combinação.</div>';
-var info=[];if(d.sample_size)info.push(fmt(d.sample_size)+" entrevistas");if(margin!=null)info.push("margem ±"+margin+" p.p."+(stratum?" neste recorte":""));if(d.field_period)info.push("campo: "+d.field_period);if((d.registrations||[]).length)info.push("registro(s): "+d.registrations.join(", "));var m=document.querySelector("#methodology");m.style.display="block";m.innerHTML='<strong>Metodologia</strong><div class="muted">'+esc(info.join(" • "))+'</div>'+(d.methodology?'<div style="margin-top:8px">'+esc(d.methodology)+'</div>':"");
-}
-
-async function loadPoll(resetQuestion){
-var office=document.querySelector("#office").value;var scope=document.querySelector("#pollScope").value;var inst=document.querySelector("#institute").value;var question=resetQuestion?"":document.querySelector("#question").value;var q="/api/g1/poll?office="+encodeURIComponent(office)+"&scope="+encodeURIComponent(scope)+"&round=1";if(inst)q+="&institute="+encodeURIComponent(inst);if(question)q+="&question="+encodeURIComponent(question);
-document.querySelector("#pollChoices").innerHTML='<div class="panel">Consultando o G1…</div>';
-try{
-var r=await fetch(q,{cache:"no-store"});var d=await r.json();if(!r.ok)throw new Error(d.detail||"Pesquisa indisponível");lastPoll=d;fillPollFilters(d);renderPoll();
-}catch(e){lastPoll=null;document.querySelector("#pollMeta").innerHTML="";document.querySelector("#pollChoices").innerHTML='<div class="panel error">Não há pesquisa disponível para essa seleção ou a fonte não respondeu: '+esc(e.message)+'</div>';document.querySelector("#methodology").style.display="none"}
-}
-
-document.querySelector("#office").addEventListener("change",function(){adjustPollScope();document.querySelector("#question").value="";document.querySelector("#stratum").value="";loadPoll(true)});
-document.querySelector("#pollScope").addEventListener("change",function(){document.querySelector("#question").value="";document.querySelector("#stratum").value="";loadPoll(true)});
-document.querySelector("#institute").addEventListener("change",function(){document.querySelector("#question").value="";document.querySelector("#stratum").value="";loadPoll(true)});
-document.querySelector("#question").addEventListener("change",function(){document.querySelector("#stratum").value="";loadPoll(false)});
-document.querySelector("#stratum").addEventListener("change",renderPoll);
-document.querySelector("#pollRefresh").addEventListener("click",function(){loadPoll(false)});document.querySelector("#tseScope").addEventListener("change",loadTSE);document.querySelector("#tseRefresh").addEventListener("click",loadTSE);
-adjustPollScope();loadCatalog();loadTSE();setInterval(function(){if(document.querySelector("#tse").classList.contains("active"))loadTSE()},20000);
-</script>
+<script src="/static/app.js"></script>
 </body>
 </html>
