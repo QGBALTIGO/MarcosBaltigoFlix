@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .bot import ElectionBot
+from .candidates import CandidateDirectory
 from .config import get_settings
 from .g1_polls import G1PollClient
 from .monitor import monitor_loop
@@ -28,6 +29,7 @@ settings = get_settings()
 storage = Storage(settings.database_path)
 tse = TSEClient(settings)
 g1_polls = G1PollClient()
+candidates = CandidateDirectory(g1_polls)
 election_bot = ElectionBot(settings, tse, storage, g1_polls)
 stop_event = asyncio.Event()
 monitor_task: asyncio.Task | None = None
@@ -69,6 +71,7 @@ async def lifespan(app: FastAPI):
         await tg_app.stop()
         await tg_app.shutdown()
     await tse.close()
+    await candidates.close()
     await g1_polls.close()
 
 
@@ -167,4 +170,39 @@ async def api_g1_catalog():
         raise HTTPException(
             status_code=502,
             detail=f"Falha consultando catálogo do G1: {type(exc).__name__}",
+        ) from exc
+
+
+@app.get("/api/candidates")
+async def api_candidates(
+    office: str = Query(default="presidente"),
+    scope: str = Query(default="br", min_length=2, max_length=2),
+):
+    try:
+        return await candidates.list(office, scope, include_poll=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Falha lendo candidaturas 2026")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha consultando candidaturas: {type(exc).__name__}",
+        ) from exc
+
+
+@app.get("/api/candidates/{office}/{scope}/{candidate_id}")
+async def api_candidate_detail(
+    office: str,
+    scope: str,
+    candidate_id: str,
+):
+    try:
+        return await candidates.detail(office, scope, candidate_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Falha lendo detalhe de candidatura")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha consultando candidatura: {type(exc).__name__}",
         ) from exc
