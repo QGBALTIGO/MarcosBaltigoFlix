@@ -50,9 +50,14 @@ def format_g1_poll(poll: G1Poll, headline: str | None = None, max_choices: int =
     ]
 
     for choice in poll.choices[:max_choices]:
-        party = f" • {html.escape(choice.party)}" if choice.party else ""
+        identity = " - ".join(
+            html.escape(value)
+            for value in (choice.number, choice.party)
+            if value
+        )
+        identity_line = f"\n<code>{identity}</code>" if identity else ""
         lines.append(
-            f"<b>{html.escape(choice.name)}</b>{party}: "
+            f"<b>{html.escape(choice.name)}</b>{identity_line}\n"
             f"<b>{_pct(choice.percentage)}</b>{_delta(choice, poll.latest_date)}"
         )
 
