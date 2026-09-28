@@ -80,12 +80,21 @@ def build_g1_channel_rich_html(
         "</tr>"
     ]
     for choice in candidates:
-        label = html.escape(choice.name)
+        candidate_name = html.escape(choice.name)
+        identity_parts = []
+        if choice.number:
+            identity_parts.append(html.escape(choice.number))
         if choice.party:
-            label += f" · {html.escape(choice.party)}"
+            identity_parts.append(html.escape(choice.party))
+        identity = " - ".join(identity_parts)
+
+        candidate_cell = f"<b>{candidate_name}</b>"
+        if identity:
+            candidate_cell += f"<br/>{identity}"
+
         rows.append(
             "<tr>"
-            f'<td align="left"><b>{label}</b></td>'
+            f'<td align="left">{candidate_cell}</td>'
             f'<td align="right"><b>{_pct(choice.percentage)}</b></td>'
             f'<td align="right">{html.escape(_delta(choice, poll.latest_date))}</td>'
             "</tr>"
