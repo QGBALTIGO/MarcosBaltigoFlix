@@ -317,6 +317,173 @@ def build_president_result_rich_html(
     ])
 
 
+
+STATE_OFFICE_NAMES = {
+    "federal": "Deputado Federal",
+    "estadual": "Deputado Estadual",
+    "senador": "Senador",
+    "governador": "Governador",
+}
+
+STATE_RESULT_PAGE_SIZE = 8
+
+
+def _state_office_name(office: str, scope: str) -> str:
+    if office == "estadual" and scope.lower() == "df":
+        return "Deputado Distrital"
+    return STATE_OFFICE_NAMES.get(office, office.title())
+
+
+def _state_result_page(
+    result: ElectionResult,
+    page: int,
+    page_size: int = STATE_RESULT_PAGE_SIZE,
+) -> tuple[list[Candidate], int, int]:
+    page_size = max(1, int(page_size))
+    total = len(result.candidates)
+    pages = max(1, (total + page_size - 1) // page_size)
+    page = min(max(0, int(page)), pages - 1)
+    start = page * page_size
+    return result.candidates[start:start + page_size], page, pages
+
+
+def build_state_office_result_rich_html(
+    result: ElectionResult,
+    *,
+    office: str,
+    page: int = 0,
+    page_size: int = STATE_RESULT_PAGE_SIZE,
+    panel_url: str = "",
+    panel_web_app: bool = True,
+    shared: bool = False,
+) -> str:
+    """Build one paginated state-office result using Telegram native Rich tables."""
+    scope = result.scope.lower()
+    place = UF_NAMES.get(scope, scope.upper())
+    office_name = _state_office_name(office, scope)
+    rows_on_page, page, pages = _state_result_page(result, page, page_size)
+    pre_election = is_pre_election(result)
+
+    rows = [
+        "<tr>"
+        '<th align="left">Candidato</th>'
+        '<th align="right">Votos</th>'
+        '<th align="right">%</th>'
+        "</tr>"
+    ]
+    for candidate in rows_on_page:
+        identity: list[str] = []
+        if candidate.number is not None:
+            identity.append(str(candidate.number))
+        if candidate.party:
+            identity.append(candidate.party)
+        candidate_cell = f"<b>{html.escape(candidate.ballot_name or candidate.name)}</b>"
+        if identity:
+            candidate_cell += "<br/>" + html.escape(" · ".join(identity))
+        rows.append(
+            "<tr>"
+            f'<td align="left">{candidate_cell}</td>'
+            f'<td align="right">{_int_br(candidate.votes)}</td>'
+            f'<td align="right"><b>{_result_pct(candidate.percentage)}</b></td>'
+            "</tr>"
+        )
+
+    sections_text = _result_pct(result.sections_counted_pct)
+    if result.sections_total > 0:
+        sections_text = (
+            f"{_int_br(result.sections_counted)} / {_int_br(result.sections_total)}"
+            f" · {_result_pct(result.sections_counted_pct)}"
+        )
+
+    if pre_election:
+        status = (
+            "<p>🕒 <b>Apuração ainda não iniciada.</b> "
+            "As candidaturas registradas estão carregadas e permanecem com 0 votos e 0% "
+            "até a publicação oficial do TSE.</p>"
+        )
+        update_text = "Aguardando início da apuração oficial"
+    else:
+        status = (
+            f"<p>🔄 <b>{_result_pct(result.sections_counted_pct)}</b> "
+            "das seções totalizadas.</p>"
+        )
+        timestamp = " ".join(
+            part for part in (result.totalization_date, result.totalization_time) if part
+        )
+        update_text = timestamp or "Atualização oficial disponível"
+
+    page_query = f"estado {scope} {office} {page}"
+
+    buttons = ""
+    if pages > 1:
+        nav_buttons: list[str] = []
+        if page > 0:
+            nav_buttons.append(
+                f'<tg-button type="callback_data" data="state:view:{scope}:{office}:{page - 1}">'
+                "⬅️ Anterior</tg-button>"
+            )
+        if page < pages - 1:
+            nav_buttons.append(
+                f'<tg-button type="callback_data" data="state:view:{scope}:{office}:{page + 1}">'
+                "Próxima ➡️</tg-button>"
+            )
+        if nav_buttons:
+            buttons += f'<tg-button-row align="center">{"".join(nav_buttons)}</tg-button-row>'
+
+    buttons += (
+        '<tg-button-row align="center">'
+        f'<tg-button type="callback_data" data="state:refresh:{scope}:{office}:{page}">'
+        "🔄 Atualizar resultado</tg-button>"
+        "</tg-button-row>"
+    )
+
+    if panel_url:
+        button_type = "url" if shared or not panel_web_app else "web_app"
+        buttons += (
+            '<tg-button-row align="center">'
+            f'<tg-button type="{button_type}" url="{html.escape(panel_url, quote=True)}">'
+            "📊 Painel ao vivo</tg-button>"
+            "</tg-button-row>"
+        )
+
+    if not shared:
+        buttons += (
+            '<tg-button-row align="center">'
+            f'<tg-button type="callback_data" data="state:{scope}">⬅️ Voltar</tg-button>'
+            f'<tg-button type="switch_inline_query_chosen_chat" query="{html.escape(page_query, quote=True)}" '
+            'allow-user-chats allow-group-chats>📤 Compartilhar</tg-button>'
+            "</tg-button-row>"
+        )
+
+    page_label = f"Página {page + 1} de {pages} · {len(result.candidates)} candidaturas"
+    totals_rows = "".join([
+        "<tr><td align="left">Seções totalizadas</td>"
+        f'<td align="right"><b>{html.escape(sections_text)}</b></td></tr>',
+        "<tr><td align="left">Votos válidos</td>"
+        f'<td align="right"><b>{_int_br(result.valid_votes)}</b></td></tr>',
+        "<tr><td align="left">Em branco</td>"
+        f'<td align="right"><b>{_int_br(result.blank_votes)}</b></td></tr>',
+        "<tr><td align="left">Nulos</td>"
+        f'<td align="right"><b>{_int_br(result.null_votes)}</b></td></tr>',
+    ])
+
+    return "".join([
+        f"<h2>🗳️ {html.escape(office_name)} • {html.escape(place)}</h2>",
+        f"<p><b>Eleições 2026 · {result.round}º turno</b></p>",
+        "<p>Apuração oficial do Tribunal Superior Eleitoral (TSE).</p>",
+        status,
+        "<hr/>",
+        f'<table bordered striped compact><caption>{html.escape(page_label)}</caption>',
+        "".join(rows),
+        "</table>",
+        '<table compact><caption>Totalização</caption>',
+        totals_rows,
+        "</table>",
+        f"<footer>Última atualização: {html.escape(update_text)} · Fonte: TSE.</footer>",
+        buttons,
+    ])
+
+
 async def _bot_api_post(
     *,
     token: str,
