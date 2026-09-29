@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+
+import httpx
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -178,6 +180,52 @@ async def api_g1_catalog():
         raise HTTPException(
             status_code=502,
             detail=f"Falha consultando catálogo do G1: {type(exc).__name__}",
+        ) from exc
+
+
+
+@app.get("/api/location/reverse")
+async def api_reverse_location(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+):
+    try:
+        async with httpx.AsyncClient(
+            timeout=8,
+            follow_redirects=True,
+            headers={"User-Agent": "ResultadoEleicoesBot/1.0 (Telegram Mini App)"},
+        ) as client:
+            response = await client.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={
+                    "format": "jsonv2",
+                    "lat": lat,
+                    "lon": lon,
+                    "zoom": 5,
+                    "addressdetails": 1,
+                },
+                headers={"Accept-Language": "pt-BR"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        address = payload.get("address") or {}
+        raw_code = (
+            address.get("ISO3166-2-lvl4")
+            or address.get("ISO3166-2-lvl3")
+            or address.get("ISO3166-2-lvl6")
+            or ""
+        )
+        uf = str(raw_code).split("-")[-1].lower().strip()
+        if uf not in VALID_UFS:
+            raise ValueError("UF não identificada.")
+        return JSONResponse(
+            {"uf": uf},
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha identificando a UF: {type(exc).__name__}",
         ) from exc
 
 
