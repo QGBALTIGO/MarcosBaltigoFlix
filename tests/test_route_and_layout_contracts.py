@@ -81,3 +81,24 @@ def test_fullscreen_spacing_uses_one_top_clearance():
     assert "body.tg-fullscreen .topbar" in css
     assert "body.tg-fullscreen .modal-top" in css
     assert "body.tg-fullscreen .sheet" in css
+
+
+def test_results_summary_uses_official_vote_categories():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    for label in (
+        "VOTAÇÃO",
+        "Votos a candidatos concorrentes",
+        "Votos válidos",
+        "Anulados",
+        "Sub judice",
+        "Nulos",
+        "Em branco",
+    ):
+        assert label in js
+
+    assert "d.valid_votes" in js
+    assert "d.void_votes" in js
+    assert "d.void_sub_judice_votes" in js
+    assert "d.null_votes" in js
+    assert "d.blank_votes" in js
