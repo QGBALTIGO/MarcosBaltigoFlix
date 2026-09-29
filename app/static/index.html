@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#090d12">
 <meta name="color-scheme" content="dark">
 <title>Resultado Eleições 2026</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>\n<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>\n<link rel="preconnect" href="https://especiaisg1.globo">
-<link rel="stylesheet" href="/static/app.css?v=20260929-3">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>\n<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>\n<link rel="preconnect" href="https://flagcdn.com" crossorigin>\n<link rel="preconnect" href="https://especiaisg1.globo">
+<link rel="stylesheet" href="/static/app.css?v=20260929-4">
 </head>
 <body>
 <div class="app">
@@ -19,7 +19,8 @@
   </header>
 
   <div class="location-bar" id="locationTrigger">
-    <span class="location-dot">●</span><span class="location-name" id="locationName">Brasil</span><span class="chev">›</span>
+    <span class="location-flag" id="locationFlag" aria-hidden="true"></span>
+    <span class="location-name" id="locationName">Brasil</span><span class="chev">›</span>
   </div>
 
   <main class="content">
@@ -100,7 +101,7 @@
   <div class="sheet-head"><h2>Selecionar local</h2><button class="close-btn" data-close aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="sheet-scroll">
     <label class="search"><span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg></span><input id="stateSearch" placeholder="Buscar estado..." autocomplete="off"></label>
-    <div class="loc-auto" id="geoBtn"><div class="circle">➤</div><div><b>Usar minha localização</b><small>Detectar estado automaticamente</small></div><span class="chev">›</span></div>
+    <div class="loc-auto" id="geoBtn"><div class="circle">➤</div><div class="geo-copy"><b id="geoTitle">Usar minha localização</b><small id="geoStatus">Detectar estado automaticamente</small></div><span class="chev">›</span></div>
     <div class="state-list" id="stateList"></div>
   </div>
 </section>
@@ -128,6 +129,6 @@
   </div>
 </section>
 
-<script src="/static/app.js?v=20260929-3"></script>
+<script src="/static/app.js?v=20260929-4"></script>
 </body>
 </html>
