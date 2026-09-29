@@ -4,6 +4,7 @@ from app.telegram_rich import (
     STATE_RESULT_PAGE_SIZE,
     build_g1_channel_rich_html,
     build_president_result_rich_html,
+    build_state_inline_menu_rich_html,
     build_state_office_result_rich_html,
 )
 
@@ -324,3 +325,33 @@ def test_df_state_rich_uses_distrital_name():
         shared=False,
     )
     assert "<h2>🗳️ Deputado Distrital • Distrito Federal</h2>" in rich
+
+
+def test_state_inline_menu_has_exactly_four_office_actions():
+    rich = build_state_inline_menu_rich_html("sp")
+
+    assert "<h2>São Paulo</h2>" in rich
+    assert rich.count('data="state:open:sp:') == 4
+    assert "Deputado Federal" in rich
+    assert "Deputado Estadual" in rich
+    assert "Senador" in rich
+    assert "Governador" in rich
+
+
+def test_state_inline_menu_uses_distrital_for_df():
+    rich = build_state_inline_menu_rich_html("df")
+    assert "Deputado Distrital" in rich
+    assert "Deputado Estadual" not in rich
+
+
+def test_shared_state_result_can_return_to_office_menu():
+    rich = build_state_office_result_rich_html(
+        _state_result(scope="sp", count=2),
+        office="governador",
+        page=0,
+        panel_url="https://t.me/ResultadoEleicoes_Bot?start=painel",
+        panel_web_app=False,
+        shared=True,
+    )
+    assert 'data="state:sp"' in rich
+    assert "⬅️ Cargos" in rich
