@@ -131,24 +131,33 @@ async function loadEstimateInBackground(seq){
   }
 }
 async function loadOfficialResultInBackground(seq){
-  if(state.office!=='presidente'){state.result=null;qs('#summaryCard').style.display='none';return}
-  const scope=state.scope;
+  const office=state.office,scope=state.scope,context=`${office}:${scope}`;
+  if(office!=='presidente'&&scope==='br'){state.result=null;state.resultContext=null;renderSummaryFromState();return}
   try{
-    const d=await requestJson(`/api/result?scope=${encodeURIComponent(scope)}`,{cache:'no-cache',timeout:7000});
-    if(seq!==state.requestSeq||state.office!=='presidente'||state.scope!==scope)return;
-    if(!d.simulation){state.result=d;qs('#summaryCard').style.display='block';renderSummary()}else{state.result=null;qs('#summaryCard').style.display='none'}
-  }catch(e){state.result=null;qs('#summaryCard').style.display='none'}
+    const d=await requestJson(`/api/result?scope=${encodeURIComponent(scope)}&office=${encodeURIComponent(office)}`,{cache:'no-cache',timeout:7000});
+    if(seq!==state.requestSeq||state.office!==office||state.scope!==scope)return;
+    const hasOfficialVotes=!d.simulation&&(Number(d.total_votes||0)>0||Number(d.sections_counted||0)>0||Number(d.sections_counted_pct||0)>0);
+    if(hasOfficialVotes){
+      state.result=d;state.resultContext=context;renderOfficialSummary(d);
+    }else{
+      state.result=null;state.resultContext=null;renderSummaryFromState();
+    }
+  }catch(e){
+    if(seq!==state.requestSeq)return;
+    state.result=null;state.resultContext=null;renderSummaryFromState();
+  }
 }
 async function loadResults(){
   if(requireStateForOffice(state.office,'results'))return;
   const seq=++state.requestSeq,office=state.office,scope=state.scope,context=`${office}:${scope}`;
-  qs('#summaryCard').style.display='none';
+  qs('#summaryCard').style.display='block';
+  state.result=null;state.resultContext=null;
+  renderPollSummary(null);
   if(state.pollContext!==context){state.poll=null;state.pollContext=null}
   const key=directoryKey(office,scope),cached=cacheRead(key,DIRECTORY_TTL);
   if(cached){applyDirectory(cached,true)}else{
     state.directory=null;state.directoryContext=null;
     qs('#candidateArea').innerHTML='<div class="card coming skeleton" style="height:180px"></div>';
-    qs('#estimateMeta').textContent='Carregando candidaturas…';
   }
   loadOfficialResultInBackground(seq);
   loadEstimateInBackground(seq);
@@ -158,8 +167,9 @@ async function loadResults(){
     cacheWrite(key,directory);
     applyDirectory(directory,false);
     if(state.poll&&state.pollContext===`${office}:${scope}`)mergePollIntoDirectory(state.poll);
+    renderSummaryFromState();
   }catch(e){
-    if(!cached&&seq===state.requestSeq){qs('#candidateArea').innerHTML=`<div class="card coming"><b>Não foi possível carregar as candidaturas</b><br>${esc(e.message)}</div>`;qs('#estimateMeta').textContent='Fonte temporariamente indisponível'}
+    if(!cached&&seq===state.requestSeq){qs('#candidateArea').innerHTML=`<div class="card coming"><b>Não foi possível carregar as candidaturas</b><br>${esc(e.message)}</div>`;renderPollSummary(null)}
   }
 }
 
