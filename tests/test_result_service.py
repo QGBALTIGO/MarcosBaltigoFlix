@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 
@@ -150,28 +152,25 @@ class TseLiveStub(Tse404Stub):
         return result, True
 
 
-@pytest.mark.asyncio
-async def test_result_service_falls_back_only_on_unpublished_official_file():
+def test_result_service_falls_back_only_on_unpublished_official_file():
     service = ResultService(settings(), Tse404Stub(), DirectoryStub())
-    result, changed = await service.fetch("br", office="presidente")
+    result, changed = asyncio.run(service.fetch("br", office="presidente"))
 
     assert changed is False
     assert is_pre_election(result)
     assert all(c.votes == 0 and c.percentage == 0 for c in result.candidates)
 
 
-@pytest.mark.asyncio
-async def test_result_service_does_not_hide_real_server_errors():
+def test_result_service_does_not_hide_real_server_errors():
     service = ResultService(settings(), Tse500Stub(), DirectoryStub())
 
     with pytest.raises(httpx.HTTPStatusError):
-        await service.fetch("br", office="presidente")
+        asyncio.run(service.fetch("br", office="presidente"))
 
 
-@pytest.mark.asyncio
-async def test_result_service_switches_automatically_to_live_official_result():
+def test_result_service_switches_automatically_to_live_official_result():
     service = ResultService(settings(), TseLiveStub(), DirectoryStub())
-    result, changed = await service.fetch("br", office="presidente")
+    result, changed = asyncio.run(service.fetch("br", office="presidente"))
 
     assert changed is True
     assert not is_pre_election(result)
