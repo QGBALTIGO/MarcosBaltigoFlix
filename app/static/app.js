@@ -37,8 +37,12 @@ function syncTelegramViewport(){
   const safe=tg.safeAreaInset||{},content=tg.contentSafeAreaInset||{};
   const systemTop=Number(safe.top)||0,systemRight=Number(safe.right)||0,systemBottom=Number(safe.bottom)||0,systemLeft=Number(safe.left)||0;
   const contentTop=Number(content.top)||0,contentRight=Number(content.right)||0,contentBottom=Number(content.bottom)||0,contentLeft=Number(content.left)||0;
-  const fallbackTop=tg.isFullscreen?(isTelegramIOS()?96:76):0;
-  const topClearance=Math.max(systemTop,contentTop,fallbackTop);
+  const fullscreen=!!tg.isFullscreen;
+  const ios=isTelegramIOS();
+  const fallbackTop=fullscreen?(ios?96:76):0;
+  const reportedTop=Math.max(systemTop,contentTop,fallbackTop);
+  const controlsGuard=fullscreen?(ios?72:54):0;
+  const topClearance=reportedTop;
   const rightClearance=Math.max(systemRight,contentRight);
   const bottomClearance=Math.max(systemBottom,contentBottom);
   const leftClearance=Math.max(systemLeft,contentLeft);
@@ -52,6 +56,7 @@ function syncTelegramViewport(){
   root.style.setProperty('--tg-content-bottom',contentBottom+'px');
   root.style.setProperty('--tg-content-left',contentLeft+'px');
   root.style.setProperty('--tg-top-clearance',topClearance+'px');
+  root.style.setProperty('--tg-controls-guard',controlsGuard+'px');
   root.style.setProperty('--tg-right-clearance',rightClearance+'px');
   root.style.setProperty('--tg-bottom-clearance',bottomClearance+'px');
   root.style.setProperty('--tg-left-clearance',leftClearance+'px');
@@ -84,7 +89,7 @@ function initTelegramMiniApp(){
       tg.onEvent('contentSafeAreaChanged',resyncTelegramViewport);
       tg.onEvent('viewportChanged',resyncTelegramViewport);
       tg.onEvent('fullscreenChanged',resyncTelegramViewport);
-      tg.onEvent('fullscreenFailed',()=>{resyncTelegramViewport();try{tg.expand()}catch(e){}});
+      tg.onEvent('fullscreenFailed',()=>{resyncTelegramViewport();try{tg.expand()}catch(e){};setTimeout(()=>{try{if(!tg.isFullscreen&&typeof tg.requestFullscreen==='function')tg.requestFullscreen()}catch(e){}},250)});
       tg.onEvent('activated',()=>{resyncTelegramViewport();if(!tg.isFullscreen)requestTelegramFullscreen()});
     }
   }catch(e){}
