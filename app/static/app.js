@@ -372,24 +372,21 @@ function openAnalysis(){
     qs('#analysisSourceNote').innerHTML='<span>ⓘ</span><span>Dados de apuração reproduzidos da fonte oficial configurada.</span>';
     arr=(d.candidates||[]).slice(0,8).map(c=>({ballot_name:c.ballot_name,estimate_percentage:Number(c.percentage||0)}));
   }else{
-    qs('#analysisDistributionTitle').textContent='Distribuição da pesquisa';
-    qs('#analysisStatsTitle').textContent='Detalhes da pesquisa';
-    const hasPoll=!!poll&&!!directory?.estimate?.available;
-    const all=(directory?.candidates||[]).slice().sort((a,b)=>Number(b.estimate_percentage||0)-Number(a.estimate_percentage||0));
-    arr=all.slice(0,8).map(c=>({ballot_name:c.ballot_name,estimate_percentage:Number(c.estimate_percentage||0)}));
-    const max=Math.max(0,...arr.map(c=>Number(c.estimate_percentage||0)));
-    qs('#eligibleText').textContent=hasPoll&&poll.sample_size?`${fmt(poll.sample_size)} entrevistas`:'Sem pesquisa disponível para este cargo/local';
-    qs('#participationLabel').textContent=`Maior percentual: ${pct(max)}`;
-    qs('#participationBar').style.width=Math.min(100,max)+'%';
-    const margin=poll?.margin_error_points!=null?`±${String(poll.margin_error_points).replace('.',',')} p.p.`:'—';
+    qs('#analysisDistributionTitle').textContent='Distribuição dos votos';
+    qs('#analysisStatsTitle').textContent='Pré-apuração';
+    const all=(directory?.candidates||[]).slice().sort((a,b)=>String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR'));
+    arr=all.slice(0,8).map(c=>({ballot_name:c.ballot_name,estimate_percentage:0}));
+    qs('#eligibleText').textContent='Apuração oficial ainda não iniciada';
+    qs('#participationLabel').textContent='Participação: 0%';
+    qs('#participationBar').style.width='0%';
     const stats=[
-      ['Instituto',poll?.institute||'—',poll?.latest_date||'—','#3d7df6'],
-      ['Margem de erro',margin,poll?.field_period||'—','#65c66b'],
-      ['Candidaturas',fmt(directory?.count||0),officeLabels[state.office],'#f59c32'],
-      ['Dados disponíveis',hasPoll?'Sim':'Não',hasPoll?'Pesquisa':'0%','#9a58dc']
+      ['Votos válidos','0','0%','#45a84d'],
+      ['Votos brancos','0','0%','#848d99'],
+      ['Votos nulos','0','0%','#ef5045'],
+      ['Candidaturas',fmt(directory?.count||0),officeLabels[state.office],'#f59c32']
     ];
     qs('#analysisStats').innerHTML=stats.map(s=>`<div class="statbox"><small><i class="legend-dot" style="background:${s[3]}"></i>${s[0]}</small><strong>${esc(s[1])}</strong><em>${esc(s[2])}</em></div>`).join('');
-    qs('#analysisSourceNote').innerHTML=hasPoll?'<span>ⓘ</span><span>Pesquisa de intenção de voto — não é apuração.</span>':'<span>ⓘ</span><span>Sem pesquisa integrada para este cargo/local; percentuais exibidos como 0%.</span>';
+    qs('#analysisSourceNote').innerHTML='<span>ⓘ</span><span>Candidaturas registradas para 2026. Votos e percentuais permanecem em 0% até a publicação da apuração oficial.</span>';
   }
   const sum=arr.reduce((a,c)=>a+Number(c.estimate_percentage||0),0);
   if(sum>0){
@@ -443,7 +440,7 @@ async function loadCandidateDetail(c,context){
 function renderFavorites(){
   const values=Object.values(getFavorites());
   if(!values.length){qs('#favoritesList').innerHTML='<div class="favorites-empty"><div style="font-size:44px;margin-bottom:10px">♡</div>Nenhum candidato salvo ainda.<br>Abra um candidato e toque no coração para favoritar.</div>';return}
-  qs('#favoritesList').innerHTML=values.map((c,i)=>`<article class="card candidate-card candidate-hero" data-favorite="${i}"><div class="candidate-main">${avatarHtml(c.ballot_name||c.name,c.photo||'')}<div><div class="cand-name">${esc(c.ballot_name||c.name)}</div><div class="cand-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="muted" style="margin-top:7px">${esc(officeLabels[c._office]||c._office||'')}</div></div><div class="cand-pct">${c.estimate_percentage==null?'—':pct(c.estimate_percentage)}</div></div></article>`).join('');
+  qs('#favoritesList').innerHTML=values.map((c,i)=>`<article class="card candidate-card candidate-hero" data-favorite="${i}"><div class="candidate-main">${avatarHtml(c.ballot_name||c.name,c.photo||'')}<div><div class="cand-name">${esc(c.ballot_name||c.name)}</div><div class="cand-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="muted" style="margin-top:7px">${esc(officeLabels[c._office]||c._office||'')}</div></div><div class="cand-pct">${pct(Number(c.result_percentage||0))}</div></div></article>`).join('');
   qsa('[data-favorite]').forEach(el=>el.onclick=()=>{const c=values[Number(el.dataset.favorite)];openCandidate(c,{office:c._office||'presidente',scope:c._scope||'br'})});
 }
 function showView(name){
