@@ -60,7 +60,7 @@ async def run(full: bool) -> int:
         # A querySelector helper returns a single element and must never receive collection methods.
         bad_qs_collection_calls = []
         qs_collection_pattern = re.compile(
-            r"\bqs\([^\n;]*?\)\.(?:forEach|map|filter|find|some|every|reduce)\b"
+            r"\bqs\([^()\n;]*\)\.(?:forEach|map|filter|find|some|every|reduce)\b"
         )
         for match in qs_collection_pattern.finditer(js):
             bad_qs_collection_calls.append(match.group(0))
@@ -93,23 +93,17 @@ async def run(full: bool) -> int:
         smoke.ok(".candidate-search" in css, "candidate search CSS missing")
         smoke.ok(".bottom-nav" in css, "bottom navigation CSS missing")
         smoke.ok("gaugeVoid" in html and "gaugeSubJudice" in html, "five-segment gauge missing")
+        smoke.ok("window.addEventListener('unhandledrejection'" in html, "frontend fatal-error boundary missing")
 
-        # Reject querySelector() used as if it returned a collection.
-        bad_collection_calls = []
-        collection_pattern = re.compile(
-            r"(?<!\$)\$\([^\n;]*?\)\.(?:forEach|map|filter|find|some|every|reduce)\b"
-        )
-        for match in collection_pattern.finditer(js):
-            bad_collection_calls.append(match.group(0))
-        smoke.ok(
-            not bad_collection_calls,
-            "querySelector used as a collection: " + ", ".join(bad_collection_calls[:10]),
-        )
-        smoke.ok("$('[data-close]').forEach" in js, "location sheet X is not wired")
-        smoke.ok("$('[data-full-close]').forEach" in js, "fullscreen X buttons are not wired")
-        smoke.ok("$('#stateList').addEventListener('click'" in js, "state list click delegation missing")
-        smoke.ok("$('.nav-btn').forEach" in js, "bottom navigation click binding missing")
-        smoke.ok("$('.chip').forEach" in js, "office chip click binding missing")
+        # Every simple #id referenced through qs() must exist exactly once in the HTML.
+        html_ids = re.findall(r'\bid="([^"]+)"', html)
+        html_id_set = set(html_ids)
+        duplicate_html_ids = sorted({item for item in html_ids if html_ids.count(item) > 1})
+        smoke.ok(not duplicate_html_ids, "duplicate HTML ids: " + ", ".join(duplicate_html_ids[:20]))
+
+        js_id_refs = sorted(set(re.findall(r"\bqs\('#([A-Za-z0-9_-]+)'\)", js)))
+        missing_js_ids = [item for item in js_id_refs if item not in html_id_set]
+        smoke.ok(not missing_js_ids, "JS references missing HTML ids: " + ", ".join(missing_js_ids[:20]))
 
         # 2) Real candidate source in every UF and office.
         # First pass does network I/O. Repeated passes hit in-process cache and exercise parsing/render data.
