@@ -56,8 +56,7 @@ class Storage:
                 CREATE TABLE IF NOT EXISTS bot_users (
                     user_id INTEGER PRIMARY KEY,
                     first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    interactions INTEGER NOT NULL DEFAULT 1
+                    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
@@ -142,11 +141,10 @@ class Storage:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 """
-                INSERT INTO bot_users(user_id, first_seen_at, last_seen_at, interactions)
-                VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
+                INSERT INTO bot_users(user_id, first_seen_at, last_seen_at)
+                VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id) DO UPDATE SET
-                    last_seen_at=CURRENT_TIMESTAMP,
-                    interactions=bot_users.interactions + 1
+                    last_seen_at=CURRENT_TIMESTAMP
                 """,
                 (int(user_id),),
             )
