@@ -94,6 +94,6 @@ jobs:
 
       - name: Run live-source smoke matrix
         env:
-          ELECTION_MODE: simulation
+          ELECTION_MODE: official
           G1_DAILY_ENABLED: "false"
         run: python -m app.smoke --quick
