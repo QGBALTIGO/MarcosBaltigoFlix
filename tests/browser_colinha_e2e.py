@@ -645,10 +645,84 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
         assert float(sticky_opacity) < 0.01, ("sticky_opacity", sticky_opacity, body_class)
 
         page.evaluate("document.body.classList.remove('keyboard-open')")
+
+        # Colinha header should sit directly below Telegram's fullscreen chrome,
+        # without adding the old extra controls guard a second time.
+        geometry = page.evaluate(
+            """
+            () => {
+              const head = document.querySelector('.colinha-head').getBoundingClientRect();
+              const actions = document.querySelector('.colinha-sticky-actions').getBoundingClientRect();
+              const nav = document.querySelector('.bottom-nav').getBoundingClientRect();
+              return {
+                headTop: head.top,
+                actionBottom: actions.bottom,
+                navTop: nav.top,
+                viewportHeight: innerHeight,
+              };
+            }
+            """
+        )
+        assert geometry["headTop"] < 125, geometry
+        assert geometry["actionBottom"] <= geometry["navTop"] - 4, geometry
+        assert geometry["actionBottom"] < geometry["viewportHeight"], geometry
+
         assert_no_horizontal_overflow(page)
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_urna_fits_mobile_viewport(browser: Browser, base_url: str) -> None:
+    sizes = [
+        {"width": 320, "height": 568},
+        {"width": 375, "height": 667},
+        {"width": 390, "height": 844},
+        {"width": 430, "height": 932},
+    ]
+    for size in sizes:
+        context = new_context(browser, viewport=size, telegram_mock=True)
+        try:
+            page, errors = page_with_errors(context, base_url)
+            page.wait_for_function("document.body.classList.contains('tg-fullscreen')", timeout=5_000)
+            open_colinha(page)
+            page.locator("#colinhaTrain").click()
+            expect(page.locator("#urnaModal")).to_be_visible()
+
+            geometry = page.evaluate(
+                """
+                () => {
+                  const modal = document.querySelector('#urnaModal');
+                  const wrap = document.querySelector('.urna-wrap').getBoundingClientRect();
+                  const machine = document.querySelector('.urna-machine').getBoundingClientRect();
+                  const keypad = document.querySelector('.urna-keypad-wrap').getBoundingClientRect();
+                  const footer = document.querySelector('.urna-footer').getBoundingClientRect();
+                  return {
+                    viewportHeight: innerHeight,
+                    modalScrollHeight: modal.scrollHeight,
+                    modalClientHeight: modal.clientHeight,
+                    wrapTop: wrap.top,
+                    wrapBottom: wrap.bottom,
+                    machineBottom: machine.bottom,
+                    keypadBottom: keypad.bottom,
+                    footerBottom: footer.bottom,
+                  };
+                }
+                """
+            )
+            assert geometry["wrapTop"] >= 0, (size, geometry)
+            assert geometry["wrapBottom"] <= geometry["viewportHeight"] + 1, (size, geometry)
+            assert geometry["machineBottom"] <= geometry["viewportHeight"] + 1, (size, geometry)
+            assert geometry["keypadBottom"] <= geometry["viewportHeight"] + 1, (size, geometry)
+            assert geometry["footerBottom"] <= geometry["viewportHeight"] + 1, (size, geometry)
+            assert geometry["modalScrollHeight"] <= geometry["modalClientHeight"] + 1, (size, geometry)
+
+            if size["width"] == 390:
+                page.screenshot(path=str(ARTIFACTS / "urna-fit-390x844.png"))
+
+            assert not errors, (size, errors)
+        finally:
+            context.close()
 
 
 
@@ -812,6 +886,7 @@ def run_suite(playwright: Playwright, base_url: str) -> None:
         ("corrupt_storage_recovers", test_corrupt_storage_recovers),
         ("responsive_matrix", test_responsive_matrix),
         ("telegram_fullscreen_and_keyboard_guard", test_telegram_fullscreen_and_keyboard_guard),
+        ("urna_fits_mobile_viewport", test_urna_fits_mobile_viewport),
         ("input_sanitization_and_limits", test_input_sanitization_and_limits),
         ("state_scoped_persistence", test_state_scoped_persistence),
         ("inline_search_switch_and_accents", test_inline_search_switch_and_accents),
