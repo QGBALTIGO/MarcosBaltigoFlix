@@ -16,20 +16,20 @@ from .g1_polls import G1PollClient
 
 
 RAW_CANDIDATES = (
-    "https://raw.githubusercontent.com/herminiotorres/dossie-cidadao/main/"
-    "docs/data/tse/candidatos/{scope}/{office}.json"
+    "https://raw.githubusercontent.com/pedrorosemberg/eleicoes.metadax.org/"
+    "prod/data/2026/candidatos/{scope}.json"
 )
 RAW_TSE_MIRROR = (
     "https://raw.githubusercontent.com/leofn/tse-candidatos-2026/main/dados/{file}"
 )
 
 OFFICE_FILES = {
-    "presidente": "presidente",
-    "governador": "governador",
-    "senador": "senador",
-    "federal": "deputado-federal",
-    "estadual": "deputado-estadual",
-    "distrital": "deputado-distrital",
+    "presidente": "PRESIDENTE",
+    "governador": "GOVERNADOR",
+    "senador": "SENADOR",
+    "federal": "DEPUTADO FEDERAL",
+    "estadual": "DEPUTADO ESTADUAL",
+    "distrital": "DEPUTADO DISTRITAL",
 }
 
 POLL_OFFICES = {"presidente", "governador", "senador"}
@@ -134,38 +134,46 @@ class CandidateDirectory:
 
     async def _candidate_rows(self, office: str, scope: str) -> list[dict[str, Any]]:
         source_scope = _candidate_scope(office, scope)
-        office_file = _office_file(office, scope)
-        url = RAW_CANDIDATES.format(scope=source_scope, office=office_file)
+        cargo = _office_file(office, scope)
+        url = RAW_CANDIDATES.format(scope=source_scope)
         data = await self._json(url)
         if not isinstance(data, list):
             raise ValueError("Fonte de candidaturas retornou formato inesperado.")
+
+        rows = [
+            row for row in data
+            if str(row.get("cargo") or "").strip().upper() == cargo
+        ]
         if office == "presidente":
-            data = [
-                row for row in data
-                if str(row.get("SQ_CANDIDATO") or "") not in EXCLUDED_CANDIDATE_IDS
+            rows = [
+                row for row in rows
+                if str(row.get("sqCandidato") or "") not in EXCLUDED_CANDIDATE_IDS
             ]
-        return data
+        return rows
 
     @staticmethod
     def _base_candidate(row: dict[str, Any]) -> dict[str, Any]:
+        partido = row.get("partido") or {}
         return {
-            "id": str(row.get("SQ_CANDIDATO") or ""),
-            "number": str(row.get("NR_CANDIDATO") or ""),
-            "name": _clean(row.get("NM_CANDIDATO")),
-            "ballot_name": _clean(row.get("NM_URNA_CANDIDATO")),
+            "id": str(row.get("sqCandidato") or row.get("SQ_CANDIDATO") or ""),
+            "number": str(row.get("numero") or row.get("NR_CANDIDATO") or ""),
+            "name": _clean(row.get("nomeCompleto") or row.get("NM_CANDIDATO")),
+            "ballot_name": _clean(row.get("nomeUrna") or row.get("NM_URNA_CANDIDATO")),
             "social_name": _clean(row.get("NM_SOCIAL_CANDIDATO")),
-            "uf": _clean(row.get("SG_UF")),
-            "office": _clean(row.get("DS_CARGO")),
-            "party": _clean(row.get("SG_PARTIDO")),
-            "party_name": _clean(row.get("NM_PARTIDO")),
-            "coalition": _clean(row.get("NM_COLIGACAO")),
+            "uf": _clean(row.get("uf") or row.get("SG_UF")),
+            "office": _clean(row.get("cargo") or row.get("DS_CARGO")),
+            "party": _clean(partido.get("sigla") or row.get("SG_PARTIDO")),
+            "party_name": _clean(partido.get("nome") or row.get("NM_PARTIDO")),
+            "coalition": _clean(row.get("coligacao") or row.get("NM_COLIGACAO")),
             "coalition_composition": _clean(row.get("DS_COMPOSICAO_COLIGACAO")),
-            "candidacy_status": _clean(row.get("DS_SITUACAO_CANDIDATURA")),
-            "gender": _clean(row.get("DS_GENERO")),
+            "candidacy_status": _clean(row.get("situacao") or row.get("DS_SITUACAO_CANDIDATURA")),
+            "judgment_status": _clean(row.get("situacaoJulgamento")),
+            "gender": _clean(row.get("genero") or row.get("DS_GENERO")),
             "race": _clean(row.get("DS_COR_RACA")),
-            "education": _clean(row.get("DS_GRAU_INSTRUCAO")),
-            "occupation": _clean(row.get("DS_OCUPACAO")),
-            "photo": "",
+            "education": _clean(row.get("grauInstrucao") or row.get("DS_GRAU_INSTRUCAO")),
+            "occupation": _clean(row.get("ocupacao") or row.get("DS_OCUPACAO")),
+            "campaign_spending_limit": float(row.get("tetoGastos") or 0),
+            "photo": _clean(row.get("fotoUrl")),
             "estimate_percentage": None,
             "estimate_history": [],
         }
@@ -224,7 +232,8 @@ class CandidateDirectory:
                     {"date": item.date, "percentage": item.percentage}
                     for item in match.history
                 ]
-                candidate["photo"] = str(getattr(match, "photo", "") or "")
+                # Preserve the higher-resolution TSE-derived official photo from
+                # the candidate dataset. G1 thumbnails are used only for polling data.
 
             candidates.sort(
                 key=lambda item: (
@@ -264,7 +273,7 @@ class CandidateDirectory:
             "candidate_source": {
                 "label": "Dados Abertos do TSE",
                 "dataset": "Candidatos 2026",
-                "mirror": "dossie-cidadao",
+                "mirror": "eleicoes.metadax.org",
             },
         }
 
