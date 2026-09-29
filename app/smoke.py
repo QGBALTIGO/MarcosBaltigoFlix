@@ -68,6 +68,9 @@ async def run(full: bool) -> int:
         smoke.ok("generateImageBlob" in colinha_js and "canvas.toBlob" in colinha_js, "Colinha image export missing")
         smoke.ok("navigator.share" in colinha_js, "Native share/save path missing")
         smoke.ok("body.keyboard-open .bottom-nav" in css, "Keyboard overlap guard missing")
+        smoke.ok("window.visualViewport" in colinha_js, "visualViewport keyboard detection missing")
+        smoke.ok("visualViewport.addEventListener('resize'" in colinha_js, "keyboard resize listener missing")
+        smoke.ok("keyboard-open" in colinha_js, "keyboard-open state toggle missing")
         smoke.ok("@media(max-width:360px)" in css, "Narrow-screen Colinha layout missing")
         smoke.ok(".urna-machine" in css and ".colinha-card" in css, "Colinha/urna styles missing")
 
