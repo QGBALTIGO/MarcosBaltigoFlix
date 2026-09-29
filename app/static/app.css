@@ -172,11 +172,6 @@ body.keyboard-open .colinha-sticky-actions{opacity:0;pointer-events:none;transfo
 
 body.colinha-active .topbar,
 body.colinha-active .location-bar{display:none}
-body.colinha-active .content{padding-top:18px}
-body.tg-fullscreen.colinha-active .content{
-  padding-top:calc(16px + var(--tg-top-clearance) + var(--tg-controls-guard));
-}
-
 @media(max-width:430px){
   [data-colinha-slot="estadual"] .colinha-number-row{flex-wrap:wrap}
   [data-colinha-slot="estadual"] .colinha-match{flex-basis:100%;width:100%}
