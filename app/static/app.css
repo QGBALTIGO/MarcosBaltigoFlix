@@ -504,14 +504,14 @@ body.tg-fullscreen .summary-main{
   padding-bottom:14px;
 }
 body.tg-fullscreen .gauge-wrap{
-  height:176px;
+  height:168px;
   margin:-10px 0 0;
 }
 body.tg-fullscreen .gauge{
   width:min(350px,92%);
 }
 body.tg-fullscreen .gauge-center{
-  top:78px;
+  top:74px;
 }
 body.tg-fullscreen .valid-share{
   margin:-12px 0 14px;
@@ -521,10 +521,10 @@ body.tg-fullscreen .submetrics{
   padding-top:12px;
 }
 body.tg-fullscreen .analysis-btn{
-  height:48px;
+  height:46px;
 }
 body.tg-fullscreen .office-result-head{
-  margin-top:10px;
+  margin-top:8px;
   margin-bottom:8px;
 }
 body.tg-fullscreen .detail-hero{
