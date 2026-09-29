@@ -564,8 +564,14 @@
       var blob=await generateImageBlob();
       var file=new File([blob],'minha-colinha-'+String(state.scope||'br').toUpperCase()+'.png',{type:'image/png'});
       if(prefersNativeFileSheet()&&(!navigator.canShare||navigator.canShare({files:[file]}))){
-        await navigator.share({title:'Minha Colinha · Eleições 2026',files:[file]});
-        toast('Escolha “Salvar imagem” ou “Salvar em Arquivos” no menu do aparelho.');
+        try{
+          await navigator.share({title:'Minha Colinha · Eleições 2026',files:[file]});
+          toast('Escolha “Salvar imagem” ou “Salvar em Arquivos” no menu do aparelho.');
+        }catch(shareError){
+          if(shareError&&shareError.name==='AbortError')return;
+          downloadBlob(blob);
+          toast('O menu nativo não abriu; a imagem foi salva pelo navegador.');
+        }
       }else{
         downloadBlob(blob);
         toast('Imagem da colinha gerada.');
@@ -582,7 +588,13 @@
       var blob=await generateImageBlob();
       var file=new File([blob],'minha-colinha-'+String(state.scope||'br').toUpperCase()+'.png',{type:'image/png'});
       if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
-        await navigator.share({title:'Minha Colinha · Eleições 2026',text:'Minha colinha para as Eleições 2026.',files:[file]});
+        try{
+          await navigator.share({title:'Minha Colinha · Eleições 2026',text:'Minha colinha para as Eleições 2026.',files:[file]});
+        }catch(shareError){
+          if(shareError&&shareError.name==='AbortError')return;
+          downloadBlob(blob);
+          toast('O compartilhamento nativo falhou; a imagem foi salva pelo navegador.');
+        }
       }else{
         downloadBlob(blob);
         toast('Compartilhamento de arquivo não disponível; a imagem foi salva.');
