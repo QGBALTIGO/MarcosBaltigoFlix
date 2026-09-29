@@ -45,8 +45,21 @@ def _norm(value: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
+def _repair_text(value: Any) -> str:
+    text = str(value or "")
+    # Repair common UTF-8/Windows-1252 mojibake while preserving already-correct UTF-8.
+    if any(marker in text for marker in ("Ã", "Â", "â€", "â€“", "â€”")):
+        try:
+            repaired = text.encode("latin-1").decode("utf-8")
+            if repaired.count("�") <= text.count("�"):
+                text = repaired
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    return unicodedata.normalize("NFC", text)
+
+
 def _clean(value: Any) -> str:
-    text = str(value or "").strip()
+    text = _repair_text(value).strip()
     return "" if text in {"#NULO", "#NE", "-1", "NÃO DIVULGÁVEL"} else text
 
 
@@ -130,7 +143,24 @@ class CandidateDirectory:
                 return cached
             response = await self.http.get(url)
             response.raise_for_status()
-            return self._put("text:" + url, response.text)
+            raw = response.content
+            text = None
+            for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+                try:
+                    candidate = raw.decode(encoding)
+                except UnicodeDecodeError:
+                    continue
+                # Prefer a decoding with no replacement characters or obvious mojibake.
+                if "�" not in candidate and not any(
+                    marker in candidate for marker in ("Ã£", "Ã§", "Ã¡", "Ã©", "Ã³", "Â")
+                ):
+                    text = candidate
+                    break
+                if text is None:
+                    text = candidate
+            if text is None:
+                text = raw.decode("utf-8", errors="replace")
+            return self._put("text:" + url, unicodedata.normalize("NFC", text))
 
     async def _candidate_rows(self, office: str, scope: str) -> list[dict[str, Any]]:
         source_scope = _candidate_scope(office, scope)
