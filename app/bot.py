@@ -5,7 +5,7 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, Forbidden, TelegramError
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, InlineQueryHandler
 
 from .config import Settings
 from .formatter import UF_NAMES, format_result
@@ -13,7 +13,14 @@ from .g1_polls import G1Poll, G1PollClient
 from .poll_formatter import format_g1_history, format_g1_poll
 from .result_service import ResultService, is_pre_election
 from .storage import Storage, milestone_for
-from .telegram_rich import build_g1_channel_rich_html, send_rich_html
+from .telegram_rich import (
+    RichMessageError,
+    answer_inline_rich_query,
+    build_g1_channel_rich_html,
+    build_president_result_rich_html,
+    edit_rich_html,
+    send_rich_html,
+)
 from .tse import VALID_UFS
 
 log = logging.getLogger(__name__)
@@ -64,10 +71,32 @@ def start_keyboard(settings: Settings, external_chat: bool = False) -> InlineKey
             ])
 
     rows.append([
-        InlineKeyboardButton("🗳️ Presidente", callback_data="result:br"),
+        InlineKeyboardButton("🗳️ Presidente", callback_data="president:open:br"),
         InlineKeyboardButton("🗺️ Estados", callback_data="start:states"),
     ])
     return InlineKeyboardMarkup(rows)
+
+
+def president_fallback_keyboard(
+    settings: Settings,
+    *,
+    external_chat: bool = False,
+) -> InlineKeyboardMarkup:
+    panel_button = InlineKeyboardButton(
+        "📊 Painel ao vivo",
+        url=bot_panel_deep_link(settings) if external_chat or not settings.webapp_url else None,
+        web_app=None if external_chat or not settings.webapp_url else WebAppInfo(settings.webapp_url),
+    )
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Atualizar", callback_data="president:refresh:br"),
+            panel_button,
+        ],
+        [
+            InlineKeyboardButton("⬅️ Voltar", callback_data="start:home"),
+            InlineKeyboardButton("📤 Compartilhar", switch_inline_query="presidente br"),
+        ],
+    ])
 
 
 def states_keyboard() -> InlineKeyboardMarkup:
@@ -244,6 +273,7 @@ class ElectionBot:
         app.add_handler(CommandHandler("governador", self.governador))
         app.add_handler(CommandHandler("senador", self.senador))
         app.add_handler(CommandHandler("boletim", self.boletim))
+        app.add_handler(InlineQueryHandler(self.inline_query))
         app.add_handler(CallbackQueryHandler(self.callback))
         self.application = app
         return app
@@ -278,6 +308,115 @@ class ElectionBot:
             ),
         )
 
+    def _president_rich(
+        self,
+        result,
+        *,
+        shared: bool = False,
+        external_chat: bool = False,
+    ) -> str:
+        if shared:
+            panel_url = bot_panel_deep_link(self.settings)
+            panel_web_app = False
+        elif not external_chat and self.settings.webapp_url:
+            panel_url = self.settings.webapp_url
+            panel_web_app = True
+        else:
+            panel_url = bot_panel_deep_link(self.settings)
+            panel_web_app = False
+        return build_president_result_rich_html(
+            result,
+            panel_url=panel_url,
+            panel_web_app=panel_web_app,
+            shared=shared,
+        )
+
+    async def _send_president_rich(
+        self,
+        message,
+        *,
+        edit: bool = False,
+        force: bool = False,
+    ) -> None:
+        try:
+            result, _ = await self.results.fetch("br", force=force)
+            external_chat = getattr(getattr(message, "chat", None), "type", "private") != "private"
+            rich_html = self._president_rich(
+                result,
+                external_chat=external_chat,
+            )
+            if edit:
+                await edit_rich_html(
+                    token=self.settings.telegram_bot_token,
+                    chat_id=message.chat_id,
+                    message_id=message.message_id,
+                    rich_html=rich_html,
+                )
+            else:
+                await send_rich_html(
+                    token=self.settings.telegram_bot_token,
+                    chat_id=message.chat_id,
+                    rich_html=rich_html,
+                )
+        except Exception as exc:
+            log.exception("Falha enviando resultado presidencial em Rich Message")
+            try:
+                result, _ = await self.results.fetch("br")
+                text = format_result(result, self.settings)
+                markup = president_fallback_keyboard(
+                    self.settings,
+                    external_chat=getattr(getattr(message, "chat", None), "type", "private") != "private",
+                )
+                if edit:
+                    await message.edit_text(
+                        text,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=markup,
+                    )
+                else:
+                    await message.reply_text(
+                        text,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=markup,
+                    )
+            except Exception:
+                log.exception("Falha também no fallback presidencial")
+                if not edit:
+                    await message.reply_text(
+                        "Não consegui consultar a apuração presidencial agora. Tente novamente em instantes."
+                    )
+
+    async def inline_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        inline = update.inline_query
+        if not inline:
+            return
+        query = (inline.query or "").strip().lower()
+        if query not in {"", "presidente", "presidente br", "br"}:
+            await inline.answer([], cache_time=1)
+            return
+        try:
+            result, _ = await self.results.fetch("br", force=True)
+            rich_html = self._president_rich(result, shared=True)
+            status = (
+                "Aguardando início da apuração oficial"
+                if is_pre_election(result)
+                else f"{result.sections_counted_pct:.2f}% das seções totalizadas".replace(".", ",")
+            )
+            await answer_inline_rich_query(
+                token=self.settings.telegram_bot_token,
+                inline_query_id=inline.id,
+                rich_html=rich_html,
+                result_id="presidente-br-2026",
+                title="🗳️ Presidente • Brasil",
+                description=f"Apuração oficial 2026 • {status}",
+            )
+        except Exception:
+            log.exception("Falha respondendo inline da apuração presidencial")
+            try:
+                await inline.answer([], cache_time=1)
+            except TelegramError:
+                pass
+
     async def _send_result(self, message, scope: str, edit: bool = False) -> None:
         try:
             result, _ = await self.results.fetch(scope)
@@ -309,7 +448,7 @@ class ElectionBot:
     async def resultado(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._guard_required_channel(update, context):
             return
-        await self._send_result(update.effective_message, "br")
+        await self._send_president_rich(update.effective_message)
 
     async def estado(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._guard_required_channel(update, context):
@@ -630,6 +769,41 @@ class ElectionBot:
                 await query.answer("Ainda não encontrei sua inscrição em @ResultadoEleicoes.", show_alert=True)
             return
         await query.answer()
+        if data == "president:open:br":
+            if not await self._guard_required_channel(update, context):
+                return
+            if query.message:
+                await self._send_president_rich(query.message, edit=True)
+            return
+        if data == "president:refresh:br":
+            if not await self._guard_required_channel(update, context):
+                return
+            try:
+                result, _ = await self.results.fetch("br", force=True)
+                if query.inline_message_id:
+                    await edit_rich_html(
+                        token=self.settings.telegram_bot_token,
+                        inline_message_id=query.inline_message_id,
+                        rich_html=self._president_rich(result, shared=True),
+                    )
+                elif query.message:
+                    external_chat = query.message.chat.type != "private"
+                    await edit_rich_html(
+                        token=self.settings.telegram_bot_token,
+                        chat_id=query.message.chat_id,
+                        message_id=query.message.message_id,
+                        rich_html=self._president_rich(
+                            result,
+                            external_chat=external_chat,
+                        ),
+                    )
+            except RichMessageError as exc:
+                log.warning("Não foi possível atualizar Rich Message presidencial: %s", exc)
+                try:
+                    await query.answer("Não consegui atualizar agora. Tente novamente.", show_alert=True)
+                except TelegramError:
+                    pass
+            return
         if data == "start:states":
             if query.message:
                 await query.edit_message_text(
