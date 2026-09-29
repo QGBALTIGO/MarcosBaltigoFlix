@@ -155,8 +155,8 @@ body.tg-fullscreen .fullscreen{padding-bottom:max(var(--tg-bottom-clearance),env
   .urna-screen{min-height:535px}.urna-number-box{width:38px;height:47px}.urna-candidate-card{grid-template-columns:1fr 92px}.urna-candidate-card img,.urna-candidate-placeholder{width:92px;height:120px}.urna-numeric button{height:62px}.urna-actions button{font-size:12px}
 }
 
-body.keyboard-open .bottom-nav{opacity:0;pointer-events:none;transform:translate(-50%,120%);transition:opacity .16s ease,transform .16s ease}
-body.keyboard-open .colinha-sticky-actions{opacity:0;pointer-events:none;transform:translateY(120%);transition:opacity .16s ease,transform .16s ease}
+body.keyboard-open .bottom-nav{opacity:0;pointer-events:none;transform:translate(-50%,120%);transition:none}
+body.keyboard-open .colinha-sticky-actions{opacity:0;pointer-events:none;transform:translateY(120%);transition:none}
 .colinha-card.has-focus{scroll-margin-top:120px;scroll-margin-bottom:42vh}
 @media(max-width:360px){
   .colinha-number-row{flex-wrap:wrap}
@@ -196,3 +196,291 @@ body.tg-fullscreen.colinha-active .content{
 .colinha-inline-item .colinha-picker-num{font-size:16px}
 .colinha-inline-status{padding:12px 4px;color:#969ca6;font-size:12px;line-height:1.45}
 .colinha-inline-status.error{color:#efbd6d}
+
+
+/* ===== Mobile fullscreen layout correction: Colinha + Urna ===== */
+body.colinha-active .content{
+  padding-top:10px;
+}
+body.tg-fullscreen.colinha-active .content{
+  padding-top:calc(var(--tg-top-clearance) + 8px);
+}
+#colinhaView{
+  padding-bottom:calc(168px + max(var(--tg-bottom-clearance),env(safe-area-inset-bottom)));
+}
+#colinhaBody{
+  padding-bottom:8px;
+}
+.colinha-sticky-actions{
+  position:fixed;
+  z-index:29;
+  left:50%;
+  bottom:calc(86px + max(var(--tg-bottom-clearance),env(safe-area-inset-bottom)));
+  transform:translateX(-50%);
+  width:min(500px,calc(100% - 40px));
+  padding:8px;
+  border:1px solid rgba(255,255,255,.04);
+  border-radius:20px;
+  background:rgba(8,12,18,.96);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  box-shadow:0 12px 34px rgba(0,0,0,.34);
+}
+body.tg-fullscreen .colinha-sticky-actions{
+  width:min(500px,calc(100% - 40px - var(--tg-left-clearance) - var(--tg-right-clearance)));
+}
+body.keyboard-open .colinha-sticky-actions{
+  transform:translate(-50%,120%);
+}
+.colinha-action{
+  height:52px;
+}
+
+/* The training screen must fit inside one phone viewport, not become a tall page. */
+.urna-fullscreen{
+  overflow:hidden;
+  padding:0;
+}
+body.tg-fullscreen .urna-fullscreen{
+  padding:0;
+}
+.urna-wrap{
+  width:min(760px,100%);
+  height:var(--tg-stable-height);
+  min-height:100dvh;
+  max-height:100dvh;
+  margin:0 auto;
+  padding:calc(var(--tg-top-clearance) + 6px) 8px max(6px,var(--tg-bottom-clearance));
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.urna-top-actions{
+  flex:0 0 auto;
+  min-height:42px;
+  margin-bottom:6px;
+}
+.urna-machine{
+  flex:1 1 auto;
+  min-height:0;
+  padding:8px;
+  border-radius:16px;
+  display:grid;
+  grid-template-rows:minmax(0,1fr) auto auto;
+  gap:0;
+  overflow:hidden;
+}
+.urna-screen{
+  min-height:0;
+  height:auto;
+  padding:16px 15px 14px;
+  border-width:7px;
+  overflow:hidden;
+}
+.urna-progress{
+  margin-bottom:12px;
+}
+.urna-screen h2{
+  font-size:clamp(22px,6.6vw,28px);
+  margin:5px 0 14px;
+}
+.urna-number-line{
+  gap:9px;
+  font-size:15px;
+}
+.urna-number-box{
+  width:clamp(36px,10.7vw,42px);
+  height:clamp(44px,12vw,50px);
+  font-size:22px;
+}
+.urna-candidate{
+  min-height:0;
+  padding:14px 0 72px;
+}
+.urna-candidate-card{
+  grid-template-columns:1fr minmax(82px,105px);
+  gap:10px;
+}
+.urna-candidate-card img,
+.urna-candidate-placeholder{
+  width:100%;
+  height:124px;
+}
+.urna-candidate-copy b{
+  font-size:18px;
+}
+.urna-candidate-copy span{
+  font-size:14px;
+}
+.urna-empty-candidate{
+  padding-top:16px;
+  font-size:14px;
+}
+.urna-invalid-vote{
+  padding:18px 0;
+  font-size:18px;
+}
+.urna-white-vote{
+  padding:24px 0;
+  font-size:23px;
+}
+.urna-compare{
+  padding:9px 11px;
+  margin:0 0 8px;
+  font-size:12px;
+  line-height:1.35;
+}
+.urna-help{
+  left:15px;
+  right:15px;
+  bottom:13px;
+  font-size:12px;
+  line-height:1.42;
+}
+.urna-keypad-wrap{
+  flex:0 0 auto;
+  grid-template-columns:2fr 1.12fr;
+  gap:7px;
+  margin-top:7px;
+}
+.urna-numeric{
+  gap:5px;
+}
+.urna-numeric button{
+  height:clamp(48px,7.1dvh,60px);
+  font-size:25px;
+}
+.urna-actions{
+  gap:5px;
+}
+.urna-actions button{
+  font-size:12px;
+}
+.urna-footer{
+  flex:0 0 auto;
+  display:flex;
+  justify-content:space-between;
+  gap:6px;
+  margin-top:7px;
+  font-size:9px;
+  white-space:nowrap;
+}
+.urna-footer span:last-child{
+  text-align:right;
+}
+.urna-finish{
+  height:100%;
+  overflow:auto;
+  padding:0 0 4px;
+}
+.urna-finish h2{
+  font-size:34px;
+  margin:2px 0 4px;
+}
+.urna-finish-score{
+  font-size:17px;
+}
+.urna-finish-sub{
+  margin-bottom:10px;
+  font-size:12px;
+}
+.urna-summary{
+  gap:4px;
+  margin-bottom:9px;
+}
+.urna-summary-row{
+  grid-template-columns:36px 1fr auto;
+  gap:7px;
+  padding:5px;
+}
+.urna-summary-row img,
+.urna-summary-avatar{
+  width:36px;
+  height:38px;
+}
+.urna-summary-copy small{
+  font-size:9px;
+}
+.urna-summary-copy b{
+  font-size:11px;
+}
+.urna-summary-num{
+  font-size:14px;
+}
+.urna-finish-actions{
+  gap:5px;
+}
+.urna-finish-actions button{
+  min-height:38px;
+  font-size:11px;
+  padding:6px;
+}
+
+@media(max-height:760px){
+  .urna-wrap{
+    padding-top:calc(var(--tg-top-clearance) + 3px);
+  }
+  .urna-top-actions{
+    min-height:38px;
+    margin-bottom:4px;
+  }
+  .urna-round-btn,
+  .urna-sound-btn{
+    height:38px;
+  }
+  .urna-round-btn{
+    width:38px;
+  }
+  .urna-machine{
+    padding:6px;
+  }
+  .urna-screen{
+    padding:12px 12px 10px;
+    border-width:6px;
+  }
+  .urna-progress{
+    margin-bottom:8px;
+  }
+  .urna-eyebrow{
+    font-size:9px;
+  }
+  .urna-screen h2{
+    margin:3px 0 9px;
+    font-size:21px;
+  }
+  .urna-number-box{
+    height:42px;
+  }
+  .urna-candidate{
+    padding:8px 0 60px;
+  }
+  .urna-candidate-card img,
+  .urna-candidate-placeholder{
+    height:98px;
+  }
+  .urna-help{
+    bottom:9px;
+    font-size:10px;
+  }
+  .urna-keypad-wrap{
+    margin-top:5px;
+  }
+  .urna-numeric button{
+    height:44px;
+    font-size:22px;
+  }
+  .urna-footer{
+    margin-top:4px;
+    font-size:8px;
+  }
+}
+
+@media(min-width:760px){
+  .urna-fullscreen{
+    inset:0;
+    border-radius:0;
+  }
+  .urna-wrap{
+    max-width:620px;
+  }
+}
