@@ -15,6 +15,7 @@
     scope:null,
     votes:{},
     directories:{},
+    directoryErrors:{},
     pickerSlot:null,
     pickerResults:[],
     loadSeq:0
@@ -129,7 +130,11 @@
   function voteMeta(slot,value){
     value=cleanNumber(value,slot.digits);
     if(!value)return {type:'empty',value:''};
-    if(!directoryFor(slot))return {type:'loading',value:value};
+    var key=dirKey(slot.office,scopeFor(slot));
+    if(!directoryFor(slot)){
+      if(cstate.directoryErrors[key])return {type:'unavailable',value:value,error:cstate.directoryErrors[key]};
+      return {type:'loading',value:value};
+    }
     var exact=exactCandidate(slot,value);
     if(exact)return {type:'candidate',value:value,candidate:exact};
     if(slot.proportional&&(value.length===2||value.length===slot.digits)){
@@ -200,6 +205,9 @@
       match.innerHTML='<span class="colinha-match-copy"><small>Continue digitando ou busque pelo nome.</small></span>';
     }else if(meta.type==='loading'){
       match.innerHTML='<span class="colinha-match-copy"><small>Carregando candidatura…</small></span>';
+    }else if(meta.type==='unavailable'){
+      card.classList.add('is-invalid');
+      match.innerHTML='<span class="colinha-match-copy"><b>Fonte indisponível</b><small>Tente atualizar a colinha.</small></span>';
     }else{
       match.innerHTML='';
     }
@@ -219,9 +227,15 @@
   async function fetchDirectory(office,scope,force){
     var key=dirKey(office,scope);
     if(!force&&cstate.directories[key])return cstate.directories[key];
-    var data=await requestJson('/api/candidates?office='+encodeURIComponent(office)+'&scope='+encodeURIComponent(scope)+'&include_poll=false',{cache:force?'no-cache':'force-cache',timeout:12000});
-    cstate.directories[key]=data;
-    return data;
+    try{
+      var data=await requestJson('/api/candidates?office='+encodeURIComponent(office)+'&scope='+encodeURIComponent(scope)+'&include_poll=false',{cache:force?'no-cache':'force-cache',timeout:12000});
+      cstate.directories[key]=data;
+      delete cstate.directoryErrors[key];
+      return data;
+    }catch(error){
+      cstate.directoryErrors[key]=String(error&&error.message||'Falha ao carregar candidaturas');
+      throw error;
+    }
   }
   async function loadDirectories(force){
     var uniq={};
@@ -233,7 +247,9 @@
       var item=uniq[key];
       return fetchDirectory(item.office,item.scope,force).catch(function(){return null});
     });
-    await Promise.all(jobs);
+    var results=await Promise.all(jobs);
+    var failures=results.filter(function(item){return !item}).length;
+    if(failures)toast(failures===1?'Uma lista de candidaturas não pôde ser carregada.':failures+' listas de candidaturas não puderam ser carregadas.');
   }
   function updateColinhaHeader(){
     var code=state.scope==='br'?'BR':String(state.scope||'').toUpperCase();
@@ -283,8 +299,13 @@
     qs('#colinhaPickerSearch').value='';
     qs('#colinhaPickerList').innerHTML='<div class="colinha-picker-empty">Carregando candidaturas…</div>';
     openSheet('#colinhaPickerSheet');
-    try{await fetchDirectory(slot.office,scopeFor(slot),false)}catch(e){}
+    var loaded=true;
+    try{await fetchDirectory(slot.office,scopeFor(slot),false)}catch(e){loaded=false}
     if(cstate.pickerSlot!==key)return;
+    if(!loaded){
+      qs('#colinhaPickerList').innerHTML='<div class="colinha-picker-empty">Não foi possível carregar as candidaturas agora. Feche esta janela, atualize a colinha e tente novamente.</div>';
+      return;
+    }
     renderPicker('');
     setTimeout(function(){try{qs('#colinhaPickerSearch').focus()}catch(e){}},220);
   }
@@ -487,12 +508,22 @@
     a.remove();
     setTimeout(function(){URL.revokeObjectURL(url)},5000);
   }
+  function prefersNativeFileSheet(){
+    var ua=String(navigator.userAgent||'');
+    return !!navigator.share&&(/iPhone|iPad|iPod/i.test(ua)||!!window.Telegram?.WebApp);
+  }
   async function saveImage(button){
     try{
       setBusy(button,true,'Gerando...');
       var blob=await generateImageBlob();
-      downloadBlob(blob);
-      toast('Imagem da colinha gerada.');
+      var file=new File([blob],'minha-colinha-'+String(state.scope||'br').toUpperCase()+'.png',{type:'image/png'});
+      if(prefersNativeFileSheet()&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+        await navigator.share({title:'Minha Colinha · Eleições 2026',files:[file]});
+        toast('Escolha “Salvar imagem” ou “Salvar em Arquivos” no menu do aparelho.');
+      }else{
+        downloadBlob(blob);
+        toast('Imagem da colinha gerada.');
+      }
     }catch(e){
       toast(e.message||'Não foi possível gerar a imagem.');
     }finally{
@@ -776,8 +807,17 @@
     }
   };
 
-  qs('#colinhaUfBtn').onclick=function(){qs('#locationTrigger').click()};
-  qs('#colinhaChooseState').onclick=function(){qs('#locationTrigger').click()};
+  function openColinhaStatePicker(){
+    var title=qs('#locationSheet .sheet-head h2');
+    if(title)title.textContent='Selecionar estado para a colinha';
+    updateGeoStatus();
+    renderStates();
+    var brazil=qs('#stateList [data-state="br"]');
+    if(brazil)brazil.remove();
+    openSheet('#locationSheet');
+  }
+  qs('#colinhaUfBtn').onclick=openColinhaStatePicker;
+  qs('#colinhaChooseState').onclick=openColinhaStatePicker;
   qs('#colinhaTrain').onclick=startUrna;
   qs('#colinhaSaveImage').onclick=function(e){saveImage(e.currentTarget)};
   qs('#colinhaShare').onclick=function(e){shareImage(e.currentTarget)};
@@ -798,17 +838,33 @@
     persistVotes();
     updateCard(key);
   });
+  function syncKeyboardState(){
+    var vv=window.visualViewport;
+    var active=document.activeElement;
+    var colinhaInput=active&&active.matches&&active.matches('[data-colinha-input]');
+    var reduced=vv?vv.height<window.innerHeight-120:false;
+    document.body.classList.toggle('keyboard-open',!!(colinhaInput&&reduced&&!qs('#colinhaView').hidden));
+  }
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',syncKeyboardState);
+    window.visualViewport.addEventListener('scroll',syncKeyboardState);
+  }
   qs('#colinhaCards').addEventListener('focusin',function(e){
     var input=e.target.closest('[data-colinha-input]');
     if(!input)return;
     var card=input.closest('.colinha-card');
-    if(card){card.classList.add('has-focus');updateCard(input.dataset.colinhaInput)}
+    if(card){
+      card.classList.add('has-focus');
+      updateCard(input.dataset.colinhaInput);
+      setTimeout(function(){try{card.scrollIntoView({block:'center',behavior:'smooth'})}catch(err){};syncKeyboardState()},120);
+    }
   });
   qs('#colinhaCards').addEventListener('focusout',function(e){
     var input=e.target.closest('[data-colinha-input]');
     if(!input)return;
     var card=input.closest('.colinha-card');
     if(card){card.classList.remove('has-focus');updateCard(input.dataset.colinhaInput)}
+    setTimeout(syncKeyboardState,80);
   });
   qs('#colinhaCards').addEventListener('click',function(e){
     var clear=e.target.closest('[data-colinha-clear]');
