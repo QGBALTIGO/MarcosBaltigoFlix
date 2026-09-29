@@ -80,7 +80,7 @@ body.tg-fullscreen .fullscreen{padding-bottom:max(var(--tg-bottom-clearance),env
 .colinha-state-needed button{border:0;border-radius:12px;background:#315f3e;color:#dff7e5;font:800 12px inherit;padding:11px 13px;cursor:pointer}
 .colinha-loading{display:grid;gap:14px}.colinha-cards{display:grid;gap:14px}
 .colinha-card{background:#17191e;border:1px solid #31343b;border-radius:24px;padding:18px;box-shadow:0 12px 28px rgba(0,0,0,.12)}
-.colinha-card.is-match{border-color:#2c733c}.colinha-card.is-invalid{border-color:#6b5123}.colinha-card.has-focus{box-shadow:0 0 0 2px rgba(92,200,117,.22)}
+.colinha-card.is-match{border-color:#31343b}.colinha-card.is-invalid{border-color:#6b5123}.colinha-card.has-focus{box-shadow:0 0 0 2px rgba(92,200,117,.22)}
 .colinha-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .colinha-card-head h3{margin:0;color:#c3c6ce;font-size:14px;letter-spacing:.08em;text-transform:uppercase;font-weight:850}
 .colinha-clear{border:0;background:transparent;color:#9297a0;font:500 12px inherit;cursor:pointer;padding:6px}
@@ -175,4 +175,10 @@ body.colinha-active .location-bar{display:none}
 body.colinha-active .content{padding-top:18px}
 body.tg-fullscreen.colinha-active .content{
   padding-top:calc(16px + var(--tg-top-clearance) + var(--tg-controls-guard));
+}
+
+@media(max-width:430px){
+  [data-colinha-slot="estadual"] .colinha-number-row{flex-wrap:wrap}
+  [data-colinha-slot="estadual"] .colinha-match{flex-basis:100%;width:100%}
+  [data-colinha-slot="estadual"] .colinha-match-copy b{white-space:normal}
 }
