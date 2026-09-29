@@ -44,6 +44,38 @@ async def run(full: bool) -> int:
         html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
         css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+        colinha_js = (STATIC_DIR / "colinha.js").read_text(encoding="utf-8")
+
+        # Colinha is a production-critical voting aid/training view. Keep a deploy gate
+        # around its DOM wiring, six-step sequence, persistence and responsive guards.
+        smoke.ok('id="colinhaView"' in html, "HTML missing colinhaView")
+        smoke.ok('data-view="colinha"' in html, "bottom navigation missing Colinha")
+        smoke.ok('data-view="polls"' not in html, "Pesquisas still exposed in bottom navigation")
+        smoke.ok("data-colinha-inline-search" in colinha_js, "Inline candidate search missing")
+        smoke.ok("data-colinha-name-input" in colinha_js, "Inline candidate search input missing")
+        smoke.ok("data-colinha-inline-results" in colinha_js, "Inline candidate search results missing")
+        smoke.ok(".colinha-inline-search-box" in css, "Inline candidate search styles missing")
+        smoke.ok('id="urnaModal"' in html, "HTML missing urna simulator")
+        smoke.ok('/static/colinha.js' in html, "HTML does not load colinha.js")
+        smoke.ok("COLINHA_SLOTS" in colinha_js, "Colinha step configuration missing")
+        for step in ("federal", "estadual", "senador1", "senador2", "governador", "presidente"):
+            smoke.ok(f"key:'{step}'" in colinha_js, f"Colinha missing step {step}")
+        smoke.ok("digits:4" in colinha_js, "Federal deputy digit count missing")
+        smoke.ok("digits:5" in colinha_js, "State/district deputy digit count missing")
+        smoke.ok(colinha_js.count("digits:3") >= 2, "Two Senate 3-digit steps missing")
+        smoke.ok(colinha_js.count("digits:2") >= 2, "Governor/president 2-digit steps missing")
+        smoke.ok("Voto de legenda" in colinha_js, "Proportional legend-vote handling missing")
+        smoke.ok("mesma candidatura do 1º voto para o Senado" in colinha_js, "Duplicate Senate warning missing")
+        smoke.ok("localStorage.setItem(storageKey(cstate.scope)" in colinha_js, "Colinha local persistence missing")
+        smoke.ok("cloudSet(cloudKey(cstate.scope)" in colinha_js, "Colinha Telegram CloudStorage persistence missing")
+        smoke.ok("generateImageBlob" in colinha_js and "canvas.toBlob" in colinha_js, "Colinha image export missing")
+        smoke.ok("navigator.share" in colinha_js, "Native share/save path missing")
+        smoke.ok("body.keyboard-open .bottom-nav" in css, "Keyboard overlap guard missing")
+        smoke.ok("window.visualViewport" in colinha_js, "visualViewport keyboard detection missing")
+        smoke.ok("visualViewport.addEventListener('resize'" in colinha_js, "keyboard resize listener missing")
+        smoke.ok("keyboard-open" in colinha_js, "keyboard-open state toggle missing")
+        smoke.ok("@media(max-width:360px)" in css, "Narrow-screen Colinha layout missing")
+        smoke.ok(".urna-machine" in css and ".colinha-card" in css, "Colinha/urna styles missing")
 
         smoke.ok("id=\"candidateArea\"" in html, "HTML missing candidateArea")
         smoke.ok("id=\"candidateSearch\"" in html, "HTML missing candidateSearch")
@@ -148,6 +180,17 @@ async def run(full: bool) -> int:
         js_id_refs = sorted(set(re.findall(r"\bqs\('#([A-Za-z0-9_-]+)'\)", js)))
         missing_js_ids = [item for item in js_id_refs if item not in html_id_set]
         smoke.ok(not missing_js_ids, "JS references missing HTML ids: " + ", ".join(missing_js_ids[:20]))
+
+        dynamic_colinha_ids = {"urnaRestart", "urnaBackColinha", "urnaFinishSave", "urnaFinishShare"}
+        colinha_id_refs = sorted(set(re.findall(r"\bqs\('#([A-Za-z0-9_-]+)'\)", colinha_js)))
+        missing_colinha_ids = [
+            item for item in colinha_id_refs
+            if item not in html_id_set and item not in dynamic_colinha_ids
+        ]
+        smoke.ok(
+            not missing_colinha_ids,
+            "Colinha JS references missing HTML ids: " + ", ".join(missing_colinha_ids[:20]),
+        )
 
         # 2) Real candidate source in every UF and office.
         # First pass does network I/O. Repeated passes hit in-process cache and exercise parsing/render data.

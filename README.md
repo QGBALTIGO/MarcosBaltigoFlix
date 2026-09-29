@@ -34,6 +34,23 @@ Comandos principais:
 
 O bot exige participação em `REQUIRED_CHANNEL` quando configurado.
 
+
+## Colinha e treinamento de urna
+
+O painel web possui uma aba **Colinha** voltada a organização pessoal dos números para as Eleições 2026.
+
+Recursos incluídos:
+- seleção da UF e preenchimento na ordem de votação;
+- busca de candidatura por nome, número ou partido;
+- deputado federal, deputado estadual/distrital, duas vagas de senador, governador e presidente;
+- persistência local da colinha;
+- geração de imagem e compartilhamento;
+- alerta para repetição da mesma candidatura nas duas vagas do Senado;
+- treinamento em uma interface inspirada na urna, com `BRANCO`, `CORRIGE` e `CONFIRMA`;
+- conferência do número digitado contra a própria colinha e resumo ao final do treino.
+
+A funcionalidade usa as mesmas candidaturas já carregadas pelo painel e é apresentada como ferramenta independente de organização e treinamento. Ela não registra votos e não se apresenta como serviço oficial da Justiça Eleitoral.
+
 ## Pesquisas G1
 
 A integração lê a configuração que o próprio especial do G1 publica em `window.g1PesquisasEleitorais` e consulta a API pública de gráficos:
