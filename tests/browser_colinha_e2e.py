@@ -727,6 +727,213 @@ def test_urna_fits_mobile_viewport(browser: Browser, base_url: str) -> None:
 
 
 
+
+def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str) -> None:
+    context = new_context(
+        browser,
+        viewport={"width": 390, "height": 844},
+        telegram_mock=True,
+    )
+    try:
+        page, errors = page_with_errors(context, base_url)
+        page.wait_for_function("document.body.classList.contains('tg-fullscreen')", timeout=5_000)
+        page.wait_for_selector('[data-real-candidate]', timeout=8_000)
+        page.wait_for_timeout(250)
+
+        results_geometry = page.evaluate(
+            """
+            () => {
+              const rect = sel => document.querySelector(sel).getBoundingClientRect();
+              const topbar = rect('.topbar');
+              const title = rect('.topbar .title');
+              const location = rect('.location-bar');
+              const summary = rect('#summaryCard');
+              const nav = rect('.bottom-nav');
+              return {
+                viewportHeight: innerHeight,
+                titleTop: title.top,
+                topbarBottom: topbar.bottom,
+                locationTop: location.top,
+                locationBottom: location.bottom,
+                summaryTop: summary.top,
+                navTop: nav.top,
+                navBottom: nav.bottom,
+              };
+            }
+            """
+        )
+        assert 82 <= results_geometry["titleTop"] <= 132, results_geometry
+        assert results_geometry["locationTop"] - results_geometry["topbarBottom"] <= 2, results_geometry
+        assert 0 <= results_geometry["summaryTop"] - results_geometry["locationBottom"] <= 24, results_geometry
+        assert results_geometry["navBottom"] <= results_geometry["viewportHeight"] + 1, results_geometry
+        page.screenshot(path=str(ARTIFACTS / "audit-results-390x844.png"))
+
+        # Every public office tab should render inside the same compact fullscreen shell.
+        for office in ("presidente", "governador", "senador", "federal", "estadual"):
+            page.locator(f'[data-office="{office}"]').click()
+            page.wait_for_selector('[data-real-candidate]', timeout=8_000)
+            page.wait_for_timeout(80)
+            assert_no_horizontal_overflow(page)
+            office_geometry = page.evaluate(
+                """
+                () => {
+                  const title = document.querySelector('.topbar .title').getBoundingClientRect();
+                  const office = document.querySelector('.office-result-head').getBoundingClientRect();
+                  const nav = document.querySelector('.bottom-nav').getBoundingClientRect();
+                  return {titleTop:title.top, officeTop:office.top, navTop:nav.top, viewportHeight:innerHeight};
+                }
+                """
+            )
+            assert office_geometry["titleTop"] <= 132, (office, office_geometry)
+            assert office_geometry["officeTop"] < office_geometry["viewportHeight"] * 1.8, (office, office_geometry)
+
+        # Candidate detail modal.
+        page.locator('[data-real-candidate]').first.click()
+        page.wait_for_function("document.querySelector('#candidateModal').classList.contains('show')")
+        page.wait_for_timeout(340)
+        candidate_geometry = page.evaluate(
+            """
+            () => {
+              const header = document.querySelector('#candidateModal .modal-top').getBoundingClientRect();
+              const hero = document.querySelector('#candidateModal .detail-hero').getBoundingClientRect();
+              return {headerTop:header.top, headerBottom:header.bottom, heroTop:hero.top, viewportHeight:innerHeight};
+            }
+            """
+        )
+        assert candidate_geometry["headerTop"] <= 1, candidate_geometry
+        assert candidate_geometry["headerBottom"] <= 175, candidate_geometry
+        assert 0 <= candidate_geometry["heroTop"] - candidate_geometry["headerBottom"] <= 2, candidate_geometry
+        page.locator("#detailHeart").click()
+        page.locator("#candidateModal [data-full-close]").click()
+        page.wait_for_timeout(340)
+
+        # Advanced analysis modal.
+        page.locator("#analysisBtn").click()
+        page.wait_for_function("document.querySelector('#analysisModal').classList.contains('show')")
+        page.wait_for_timeout(340)
+        analysis_geometry = page.evaluate(
+            """
+            () => {
+              const header = document.querySelector('#analysisModal .modal-top').getBoundingClientRect();
+              const body = document.querySelector('#analysisModal .analysis-body').getBoundingClientRect();
+              return {headerBottom:header.bottom, bodyTop:body.top, viewportHeight:innerHeight};
+            }
+            """
+        )
+        assert analysis_geometry["headerBottom"] <= 175, analysis_geometry
+        assert 0 <= analysis_geometry["bodyTop"] - analysis_geometry["headerBottom"] <= 24, analysis_geometry
+        page.locator("#analysisModal [data-full-close]").click()
+        page.wait_for_timeout(340)
+
+        # State sheet must use the available fullscreen height instead of leaving another guard above it.
+        page.locator("#locationTrigger").click()
+        page.wait_for_function("document.querySelector('#locationSheet').classList.contains('show')")
+        page.wait_for_timeout(380)
+        sheet_geometry = page.evaluate(
+            """
+            () => {
+              const sheet = document.querySelector('#locationSheet').getBoundingClientRect();
+              return {top:sheet.top, bottom:sheet.bottom, height:sheet.height, viewportHeight:innerHeight};
+            }
+            """
+        )
+        assert 70 <= sheet_geometry["top"] <= 125, sheet_geometry
+        assert sheet_geometry["bottom"] <= sheet_geometry["viewportHeight"] + 1, sheet_geometry
+        page.locator("#locationSheet [data-close]").click()
+        page.wait_for_timeout(340)
+
+        # Favorites retains the same global chrome and must start directly after the location bar.
+        page.locator('[data-view="favorites"]').click()
+        expect(page.locator("#favoritesView")).to_be_visible()
+        expect(page.locator("#favoritesList .candidate-card")).to_have_count(1)
+        favorites_geometry = page.evaluate(
+            """
+            () => {
+              const title = document.querySelector('.topbar .title').getBoundingClientRect();
+              const location = document.querySelector('.location-bar').getBoundingClientRect();
+              const heading = document.querySelector('#favoritesView .section-head').getBoundingClientRect();
+              const card = document.querySelector('#favoritesList .candidate-card').getBoundingClientRect();
+              const nav = document.querySelector('.bottom-nav').getBoundingClientRect();
+              return {
+                titleTop:title.top,
+                locationBottom:location.bottom,
+                headingTop:heading.top,
+                cardTop:card.top,
+                navBottom:nav.bottom,
+                viewportHeight:innerHeight
+              };
+            }
+            """
+        )
+        assert favorites_geometry["titleTop"] <= 132, favorites_geometry
+        assert 8 <= favorites_geometry["headingTop"] - favorites_geometry["locationBottom"] <= 42, favorites_geometry
+        assert favorites_geometry["cardTop"] - favorites_geometry["headingTop"] <= 72, favorites_geometry
+        assert favorites_geometry["navBottom"] <= favorites_geometry["viewportHeight"] + 1, favorites_geometry
+        page.screenshot(path=str(ARTIFACTS / "audit-favorites-390x844.png"))
+
+        # Colinha has its own header but must respect the same single safe-top clearance.
+        page.locator('[data-view="colinha"]').click()
+        expect(page.locator("#colinhaView")).to_be_visible()
+        page.wait_for_timeout(220)
+        colinha_geometry = page.evaluate(
+            """
+            () => {
+              const head = document.querySelector('.colinha-head').getBoundingClientRect();
+              const nav = document.querySelector('.bottom-nav').getBoundingClientRect();
+              const actions = document.querySelector('.colinha-sticky-actions').getBoundingClientRect();
+              return {
+                headTop:head.top,
+                actionsBottom:actions.bottom,
+                navTop:nav.top,
+                viewportHeight:innerHeight
+              };
+            }
+            """
+        )
+        assert 82 <= colinha_geometry["headTop"] <= 125, colinha_geometry
+        assert colinha_geometry["actionsBottom"] <= colinha_geometry["navTop"] - 4, colinha_geometry
+
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_results_scroll_clearance(browser: Browser, base_url: str) -> None:
+    context = new_context(
+        browser,
+        viewport={"width": 390, "height": 844},
+        telegram_mock=True,
+    )
+    try:
+        page, errors = page_with_errors(context, base_url)
+        page.wait_for_function("document.body.classList.contains('tg-fullscreen')", timeout=5_000)
+        page.wait_for_selector('[data-real-candidate]', timeout=8_000)
+        # Verify the page can scroll its last interactive content above the fixed nav.
+        page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+        page.wait_for_timeout(120)
+        geometry = page.evaluate(
+            """
+            () => {
+              const nav = document.querySelector('.bottom-nav').getBoundingClientRect();
+              const more = document.querySelector('#candidateMore');
+              const area = document.querySelector('#candidateArea').getBoundingClientRect();
+              const target = more && getComputedStyle(more).display !== 'none' ? more.getBoundingClientRect() : area;
+              return {
+                navTop:nav.top,
+                targetBottom:target.bottom,
+                documentBottom:document.documentElement.scrollHeight,
+                viewportHeight:innerHeight,
+                scrollY
+              };
+            }
+            """
+        )
+        assert geometry["targetBottom"] <= geometry["navTop"] + 1, geometry
+        assert not errors, errors
+    finally:
+        context.close()
+
+
 def test_input_sanitization_and_limits(browser: Browser, base_url: str) -> None:
     context = new_context(browser)
     try:
@@ -888,6 +1095,8 @@ def run_suite(playwright: Playwright, base_url: str) -> None:
         ("responsive_matrix", test_responsive_matrix),
         ("telegram_fullscreen_and_keyboard_guard", test_telegram_fullscreen_and_keyboard_guard),
         ("urna_fits_mobile_viewport", test_urna_fits_mobile_viewport),
+        ("fullscreen_all_views_and_modals_spacing", test_fullscreen_all_views_and_modals_spacing),
+        ("results_scroll_clearance", test_results_scroll_clearance),
         ("input_sanitization_and_limits", test_input_sanitization_and_limits),
         ("state_scoped_persistence", test_state_scoped_persistence),
         ("inline_search_switch_and_accents", test_inline_search_switch_and_accents),
