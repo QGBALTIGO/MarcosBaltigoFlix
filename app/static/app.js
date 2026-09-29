@@ -191,17 +191,103 @@ function renderRealCandidates(){
   const more=qs('#candidateMore');more.style.display=arr.length>state.candidateLimit?'block':'none';more.textContent=`Mostrar mais (${Math.max(0,arr.length-state.candidateLimit)})`;
 }
 
-function renderSummary(){
-  const d=state.result;if(!d)return;const total=Number(d.total_votes||0);
-  const validPct=total?Number(d.valid_votes||0)/total*100:0,voidPct=total?Number(d.void_votes||0)/total*100:0,subPct=total?Number(d.void_sub_judice_votes||0)/total*100:0,nullPct=total?Number(d.null_votes||0)/total*100:0,blankPct=total?Number(d.blank_votes||0)/total*100:0;
-  setGauge(validPct,voidPct,subPct,nullPct,blankPct);qs('#totalVotes').textContent=`${fmt(total)} votos`;qs('#validShare').textContent=pct(validPct);qs('#validVotes').textContent=fmt(d.valid_votes);qs('#voidVotes').textContent=fmt(d.void_votes);qs('#subJudiceVotes').textContent=fmt(d.void_sub_judice_votes);qs('#nullVotes').innerHTML=`${fmt(d.null_votes)} · <span class="muted">${pct(nullPct)}</span>`;qs('#blankVotes').innerHTML=`${fmt(d.blank_votes)} · <span class="muted">${pct(blankPct)}</span>`;
+function setSummaryLabels(labels,values){
+  const valueIds=['#validVotes','#voidVotes','#subJudiceVotes','#nullVotes','#blankVotes'];
+  const labelIds=['#summaryLabel1','#summaryLabel2','#summaryLabel3','#summaryLabel4','#summaryLabel5'];
+  const colors=['#3d7df6','#65c66b','#f59c32','#9a58dc','#61b7e7'];
+  for(let i=0;i<5;i++){
+    qs(valueIds[i]).textContent=values[i]??'0%';
+    qs(labelIds[i]).textContent=labels[i]||'—';
+    const sw=qs(\`#summarySwatch\${i+1}\`);if(sw)sw.style.background=colors[i];
+  }
 }
+function renderPollSummary(poll){
+  const card=qs('#summaryCard');card.style.display='block';card.classList.add('poll-mode');card.classList.remove('official-mode');
+  const directory=state.directory,hasPoll=!!poll&&!!directory?.estimate?.available;
+  const candidates=(directory?.candidates||[]).slice().sort((a,b)=>Number(b.estimate_percentage||0)-Number(a.estimate_percentage||0)).slice(0,5);
+  while(candidates.length<5)candidates.push(null);
+  const values=candidates.map(c=>Number(c?.estimate_percentage||0));
+  const labels=candidates.map(c=>c?.ballot_name||'—');
+  setGauge(...values);
+  qs('#summaryModeTitle').textContent='PESQUISA';
+  qs('#totalVotes').textContent=hasPoll?\`\${poll.institute||'Pesquisa'} · \${poll.latest_date||''}\`:'0%';
+  qs('#summaryShareLabel').textContent='Maior intenção de voto';
+  qs('#validShare').textContent=pct(Math.max(0,...values));
+  setSummaryLabels(labels,values.map(v=>pct(v)));
+}
+function renderOfficialSummary(d){
+  const card=qs('#summaryCard');card.style.display='block';card.classList.add('official-mode');card.classList.remove('poll-mode');
+  const total=Number(d.total_votes||0);
+  const validPct=total?Number(d.valid_votes||0)/total*100:0;
+  const voidPct=total?Number(d.void_votes||0)/total*100:0;
+  const subPct=total?Number(d.void_sub_judice_votes||0)/total*100:0;
+  const nullPct=total?Number(d.null_votes||0)/total*100:0;
+  const blankPct=total?Number(d.blank_votes||0)/total*100:0;
+  setGauge(validPct,voidPct,subPct,nullPct,blankPct);
+  qs('#summaryModeTitle').textContent='VOTAÇÃO';
+  qs('#totalVotes').textContent=\`\${fmt(total)} votos\`;
+  qs('#summaryShareLabel').textContent='Votos a candidatos concorrentes';
+  qs('#validShare').textContent=pct(validPct);
+  setSummaryLabels(['Votos válidos','Anulados','Sub judice','Nulos','Em branco'],[fmt(d.valid_votes),fmt(d.void_votes),fmt(d.void_sub_judice_votes),fmt(d.null_votes),fmt(d.blank_votes)]);
+}
+function renderSummaryFromState(){
+  const context=\`\${state.office}:\${state.scope}\`;
+  if(state.result&&state.resultContext===context)renderOfficialSummary(state.result);
+  else renderPollSummary(state.pollContext===context?state.poll:null);
+}
+function renderSummary(){renderSummaryFromState()}
 function openAnalysis(){
-  const d=state.result,directory=state.directory,real=(directory?.candidates||[]).filter(c=>c.estimate_percentage!=null).slice(0,6);
-  if(!d&&!real.length)return;
-  qs('#analysisPlace').textContent=`● ${states[state.scope]||state.scope.toUpperCase()}`;
-  if(d){qs('#eligibleText').textContent=`${fmt(d.electorate_total)} eleitores aptos`;qs('#participationLabel').textContent=`Participação: ${pct(d.turnout_pct)}`;qs('#participationBar').style.width=Math.min(100,Number(d.turnout_pct||0))+'%';const total=Number(d.total_votes||0)||1;const stats=[['Votos válidos',d.valid_votes,Number(d.valid_votes||0)/total*100,'#45a84d'],['Votos brancos',d.blank_votes,Number(d.blank_votes||0)/total*100,'#848d99'],['Votos nulos',d.null_votes,Number(d.null_votes||0)/total*100,'#ef5045'],['Abstenções',d.abstention,d.abstention_pct,'#f59c32']];qs('#analysisStats').innerHTML=stats.map(s=>`<div class="statbox"><small><i class="legend-dot" style="background:${s[3]}"></i>${s[0]}</small><strong>${fmt(s[1])}</strong><em>${pct(s[2])}</em></div>`).join('')}
-  const arr=real.length?real:((d?.candidates||[]).slice(0,6).map(c=>({...c,estimate_percentage:c.percentage}))),sum=arr.reduce((a,c)=>a+Number(c.estimate_percentage||0),0)||1;let cursor=0,parts=[];arr.forEach((c,i)=>{const share=Number(c.estimate_percentage||0)/sum*100;parts.push(`${palette[i]} ${cursor}% ${cursor+share}%`);cursor+=share});qs('#candidateDonut').style.background=`conic-gradient(${parts.join(',')})`;qs('#donutLegend').innerHTML=arr.map((c,i)=>`<div class="legend-item"><b><i class="legend-dot" style="background:${palette[i]}"></i>${esc(c.ballot_name)}</b><span>${pct(c.estimate_percentage)}</span></div>`).join('');openFull('#analysisModal');
+  const context=\`\${state.office}:\${state.scope}\`;
+  const official=!!(state.result&&state.resultContext===context);
+  const d=state.result,directory=state.directory,poll=state.pollContext===context?state.poll:null;
+  qs('#analysisPlace').textContent=\`● \${states[state.scope]||state.scope.toUpperCase()} · \${officeLabels[state.office]}\`;
+  let arr=[];
+  if(official){
+    qs('#analysisDistributionTitle').textContent='Distribuição dos votos';
+    qs('#analysisStatsTitle').textContent='Estatísticas da eleição';
+    qs('#eligibleText').textContent=\`\${fmt(d.electorate_total)} eleitores aptos\`;
+    qs('#participationLabel').textContent=\`Participação: \${pct(d.turnout_pct)}\`;
+    qs('#participationBar').style.width=Math.min(100,Number(d.turnout_pct||0))+'%';
+    const total=Number(d.total_votes||0)||1;
+    const stats=[
+      ['Votos válidos',fmt(d.valid_votes),pct(Number(d.valid_votes||0)/total*100),'#45a84d'],
+      ['Votos brancos',fmt(d.blank_votes),pct(Number(d.blank_votes||0)/total*100),'#848d99'],
+      ['Votos nulos',fmt(d.null_votes),pct(Number(d.null_votes||0)/total*100),'#ef5045'],
+      ['Abstenções',fmt(d.abstention),pct(d.abstention_pct),'#f59c32']
+    ];
+    qs('#analysisStats').innerHTML=stats.map(s=>\`<div class="statbox"><small><i class="legend-dot" style="background:\${s[3]}"></i>\${s[0]}</small><strong>\${s[1]}</strong><em>\${s[2]}</em></div>\`).join('');
+    qs('#analysisSourceNote').innerHTML='<span>ⓘ</span><span>Dados de apuração reproduzidos da fonte oficial configurada.</span>';
+    arr=(d.candidates||[]).slice(0,8).map(c=>({ballot_name:c.ballot_name,estimate_percentage:Number(c.percentage||0)}));
+  }else{
+    qs('#analysisDistributionTitle').textContent='Distribuição da pesquisa';
+    qs('#analysisStatsTitle').textContent='Detalhes da pesquisa';
+    const hasPoll=!!poll&&!!directory?.estimate?.available;
+    const all=(directory?.candidates||[]).slice().sort((a,b)=>Number(b.estimate_percentage||0)-Number(a.estimate_percentage||0));
+    arr=all.slice(0,8).map(c=>({ballot_name:c.ballot_name,estimate_percentage:Number(c.estimate_percentage||0)}));
+    const max=Math.max(0,...arr.map(c=>Number(c.estimate_percentage||0)));
+    qs('#eligibleText').textContent=hasPoll&&poll.sample_size?\`\${fmt(poll.sample_size)} entrevistas\`:'Sem pesquisa disponível para este cargo/local';
+    qs('#participationLabel').textContent=\`Maior percentual: \${pct(max)}\`;
+    qs('#participationBar').style.width=Math.min(100,max)+'%';
+    const margin=poll?.margin_error_points!=null?\`±\${String(poll.margin_error_points).replace('.',',')} p.p.\`:'—';
+    const stats=[
+      ['Instituto',poll?.institute||'—',poll?.latest_date||'—','#3d7df6'],
+      ['Margem de erro',margin,poll?.field_period||'—','#65c66b'],
+      ['Candidaturas',fmt(directory?.count||0),officeLabels[state.office],'#f59c32'],
+      ['Dados disponíveis',hasPoll?'Sim':'Não',hasPoll?'Pesquisa':'0%','#9a58dc']
+    ];
+    qs('#analysisStats').innerHTML=stats.map(s=>\`<div class="statbox"><small><i class="legend-dot" style="background:\${s[3]}"></i>\${s[0]}</small><strong>\${esc(s[1])}</strong><em>\${esc(s[2])}</em></div>\`).join('');
+    qs('#analysisSourceNote').innerHTML=hasPoll?'<span>ⓘ</span><span>Pesquisa de intenção de voto — não é apuração.</span>':'<span>ⓘ</span><span>Sem pesquisa integrada para este cargo/local; percentuais exibidos como 0%.</span>';
+  }
+  const sum=arr.reduce((a,c)=>a+Number(c.estimate_percentage||0),0);
+  if(sum>0){
+    let cursor=0,parts=[];
+    arr.forEach((c,i)=>{const share=Number(c.estimate_percentage||0)/sum*100;parts.push(\`\${palette[i%palette.length]} \${cursor}% \${cursor+share}%\`);cursor+=share});
+    qs('#candidateDonut').style.background=\`conic-gradient(\${parts.join(',')})\`;
+  }else{
+    qs('#candidateDonut').style.background='#252d38';
+  }
+  qs('#donutLegend').innerHTML=arr.map((c,i)=>\`<div class="legend-item"><b><i class="legend-dot" style="background:\${palette[i%palette.length]}"></i>\${esc(c.ballot_name)}</b><span>\${pct(c.estimate_percentage)}</span></div>\`).join('')||'<div class="muted">Sem dados disponíveis.</div>';
+  openFull('#analysisModal');
 }
 
 function openCandidate(c,context={office:state.office,scope:state.scope}){
