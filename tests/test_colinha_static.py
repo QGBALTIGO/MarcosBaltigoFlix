@@ -38,3 +38,13 @@ def test_colinha_keeps_poll_backend_available_but_replaces_tab():
 
     assert 'id="pollsView"' in html
     assert 'data-view="polls"' not in html
+
+
+def test_colinha_search_is_inline_in_each_card():
+    js = (STATIC / "colinha.js").read_text(encoding="utf-8")
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+
+    assert "data-colinha-inline-search" in js
+    assert "data-colinha-name-input" in js
+    assert "data-colinha-inline-results" in js
+    assert ".colinha-inline-search-box" in css
