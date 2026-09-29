@@ -41,7 +41,7 @@ async function restoreCloudLocation(){if(localStorage.getItem('election_scope'))
 function cacheRead(key,ttl){try{const raw=localStorage.getItem(CACHE_PREFIX+key);if(!raw)return null;const item=JSON.parse(raw);if(Date.now()-item.at>ttl){localStorage.removeItem(CACHE_PREFIX+key);return null}return item.data}catch(e){return null}}
 function cacheWrite(key,data){try{localStorage.setItem(CACHE_PREFIX+key,JSON.stringify({at:Date.now(),data}));const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(CACHE_PREFIX+'dir:')){try{keys.push([k,JSON.parse(localStorage.getItem(k)).at||0])}catch(e){}}}keys.sort((a,b)=>b[1]-a[1]);keys.slice(6).forEach(([k])=>localStorage.removeItem(k))}catch(e){}}
 function directoryKey(office=state.office,scope=state.scope){return `dir:${office}:${office==='presidente'?'br':scope}:v5`}
-function pollKey(office,scope){return `poll:${office}:${scope}:v3`}
+function pollKey(office,scope,institute='',question=''){return `poll:${office}:${scope}:${institute||'auto'}:${question||'default'}:v4`}
 
 function setGauge(valid,voidPct,subPct,nullPct,blankPct){
   const vals=[valid,voidPct,subPct,nullPct,blankPct].map(x=>Math.max(0,Number(x||0)));
@@ -93,7 +93,8 @@ function matchPollChoice(candidate,choices){
   return choices.find(x=>optionNames(x).some(v=>names.includes(v)))||choices.find(x=>optionNames(x).some(p=>p&&names.some(n=>p.length>=5&&n.length>=5&&(p.includes(n)||n.includes(p)))));
 }
 function mergePollIntoDirectory(poll){
-  if(!state.directory)return;
+  const pollContext=`${poll.office}:${poll.scope}`;
+  if(!state.directory||state.directoryContext!==pollContext)return;
   const choices=poll.choices||[];
   state.directory.candidates.forEach(c=>{const m=matchPollChoice(c,choices);c.estimate_percentage=m?Number(m.percentage):null;c.estimate_history=m?(m.history||[]):[]});
   state.directory.estimate={available:true,source:'G1',institute:poll.institute,question:poll.question,date:poll.latest_date,margin_error_points:poll.margin_error_points,sample_size:poll.sample_size,field_period:poll.field_period,registrations:poll.registrations,source_url:poll.source_url};
@@ -130,10 +131,15 @@ async function loadOfficialResultInBackground(seq){
 }
 async function loadResults(){
   if(requireStateForOffice(state.office,'results'))return;
-  const seq=++state.requestSeq,office=state.office,scope=state.scope;
+  const seq=++state.requestSeq,office=state.office,scope=state.scope,context=`${office}:${scope}`;
   qs('#summaryCard').style.display='none';
+  if(state.pollContext!==context){state.poll=null;state.pollContext=null}
   const key=directoryKey(office,scope),cached=cacheRead(key,DIRECTORY_TTL);
-  if(cached){applyDirectory(cached,true)}else{qs('#candidateArea').innerHTML='<div class="card coming skeleton" style="height:180px"></div>';qs('#estimateMeta').textContent='Carregando candidaturas…'}
+  if(cached){applyDirectory(cached,true)}else{
+    state.directory=null;state.directoryContext=null;
+    qs('#candidateArea').innerHTML='<div class="card coming skeleton" style="height:180px"></div>';
+    qs('#estimateMeta').textContent='Carregando candidaturas…';
+  }
   loadOfficialResultInBackground(seq);
   loadEstimateInBackground(seq);
   try{
@@ -221,12 +227,14 @@ function mergeHighQualityPollPhotos(poll,directory){
 }
 async function loadPoll(reset=false){
   const office=qs('#pollOffice').value;if(requireStateForOffice(office,'polls')){qs('#pollOffice').value='presidente';return}
-  const scope=state.scope,inst=qs('#pollInstitute').value,qcode=reset?'':qs('#pollQuestion').value;syncInstitutes();
-  const cached=cacheRead(pollKey(office,scope),POLL_TTL);if(cached){state.poll=cached;fillPollFilters(cached);renderPoll()}
+  const scope=state.scope;syncInstitutes();
+  const inst=qs('#pollInstitute').value,qcode=reset?'':qs('#pollQuestion').value;
+  const cacheKey=pollKey(office,scope,inst,qcode);
+  const cached=cacheRead(cacheKey,POLL_TTL);if(cached){state.poll=cached;state.pollContext=`${office}:${scope}`;fillPollFilters(cached);renderPoll()}
   if(!cached)qs('#pollList').innerHTML='<div class="card coming skeleton" style="height:150px"></div>';
   let url=`/api/g1/poll?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&round=1`;if(inst)url+=`&institute=${encodeURIComponent(inst)}`;if(qcode)url+=`&question=${encodeURIComponent(qcode)}`;
   try{
-    const [pr,dir]=await Promise.all([fetch(url,{cache:'no-cache'}),highQualityDirectoryForPoll(office,scope)]),d=await pr.json();if(!pr.ok)throw new Error(d.detail||'Pesquisa indisponível');mergeHighQualityPollPhotos(d,dir);state.poll=d;cacheWrite(pollKey(office,scope),d);fillPollFilters(d);renderPoll();
+    const [pr,dir]=await Promise.all([fetch(url,{cache:'no-cache'}),highQualityDirectoryForPoll(office,scope)]),d=await pr.json();if(!pr.ok)throw new Error(d.detail||'Pesquisa indisponível');mergeHighQualityPollPhotos(d,dir);state.poll=d;state.pollContext=`${office}:${scope}`;cacheWrite(cacheKey,d);fillPollFilters(d);renderPoll();
   }catch(e){if(!cached){qs('#pollMeta').textContent='';qs('#pollList').innerHTML=`<div class="card coming"><b>Pesquisa indisponível</b><br>${esc(e.message)}</div>`;qs('#methodology').style.display='none'}}
 }
 function renderPoll(){
