@@ -355,3 +355,38 @@ def test_shared_state_result_can_return_to_office_menu():
     )
     assert 'data="state:sp"' in rich
     assert "⬅️ Cargos" in rich
+
+
+def test_president_table_is_alphabetical_before_counting():
+    result = _president_result(pre_election=True)
+    # Deliberately keep the source list in non-alphabetical order.
+    assert result.candidates[0].ballot_name == "CANDIDATO UM"
+
+    rich = build_president_result_rich_html(result, panel_url="")
+    assert rich.index("CANDIDATO DOIS") < rich.index("CANDIDATO UM")
+
+
+def test_president_table_reorders_by_percentage_and_votes_when_live():
+    result = _president_result(pre_election=False)
+    result.candidates = list(reversed(result.candidates))
+
+    rich = build_president_result_rich_html(result, panel_url="")
+    assert rich.index("CANDIDATO UM") < rich.index("CANDIDATO DOIS")
+
+
+def test_state_pagination_uses_live_ranking_not_source_order():
+    result = _state_result(count=19, pre_election=False)
+    result.candidates = list(reversed(result.candidates))
+
+    rich = build_state_office_result_rich_html(
+        result,
+        office="federal",
+        page=0,
+        panel_url="",
+        shared=False,
+    )
+
+    assert "CANDIDATO 01" in rich
+    assert "CANDIDATO 08" in rich
+    assert "CANDIDATO 09" not in rich
+    assert rich.index("CANDIDATO 01") < rich.index("CANDIDATO 08")
