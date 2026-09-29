@@ -472,6 +472,193 @@ class ElectionBot:
                         "Não consegui consultar a apuração presidencial agora. Tente novamente em instantes."
                     )
 
+    def _state_office_rich(
+        self,
+        result,
+        *,
+        office: str,
+        page: int,
+        shared: bool = False,
+        external_chat: bool = False,
+    ) -> str:
+        if shared:
+            panel_url = bot_panel_deep_link(self.settings)
+            panel_web_app = False
+        elif not external_chat and self.settings.webapp_url:
+            panel_url = self.settings.webapp_url
+            panel_web_app = True
+        else:
+            panel_url = bot_panel_deep_link(self.settings)
+            panel_web_app = False
+
+        return build_state_office_result_rich_html(
+            result,
+            office=office,
+            page=page,
+            page_size=STATE_RESULT_PAGE_SIZE,
+            panel_url=panel_url,
+            panel_web_app=panel_web_app,
+            shared=shared,
+        )
+
+    def _state_page_count(self, result) -> int:
+        count = len(result.candidates)
+        return max(1, (count + STATE_RESULT_PAGE_SIZE - 1) // STATE_RESULT_PAGE_SIZE)
+
+    def _state_fallback_text(
+        self,
+        result,
+        *,
+        office: str,
+        page: int,
+    ) -> tuple[str, int, int]:
+        pages = self._state_page_count(result)
+        page = min(max(0, int(page)), pages - 1)
+        start = page * STATE_RESULT_PAGE_SIZE
+        candidates = result.candidates[start:start + STATE_RESULT_PAGE_SIZE]
+        place = UF_NAMES.get(result.scope, result.scope.upper())
+        title = state_office_label(result.scope, office)
+
+        lines = [
+            f"<b>🗳️ {title} • {place}</b>",
+            f"<b>Eleições 2026 · {result.round}º turno</b>",
+            "",
+            f"Página <b>{page + 1}/{pages}</b> · {len(result.candidates)} candidaturas",
+            "",
+        ]
+        for candidate in candidates:
+            identity = " · ".join(
+                value
+                for value in (
+                    str(candidate.number) if candidate.number is not None else "",
+                    candidate.party,
+                )
+                if value
+            )
+            votes = f"{int(candidate.votes):,}".replace(",", ".")
+            percentage = (
+                f"{float(candidate.percentage):.2f}"
+                .rstrip("0")
+                .rstrip(".")
+                .replace(".", ",")
+            ) + "%"
+            lines.append(
+                f"<b>{candidate.ballot_name or candidate.name}</b>"
+                + (f" · {identity}" if identity else "")
+            )
+            lines.append(f"{votes} votos · {percentage}")
+            lines.append("")
+
+        sections = (
+            f"{float(result.sections_counted_pct):.2f}"
+            .rstrip("0")
+            .rstrip(".")
+            .replace(".", ",")
+        ) + "%"
+        lines.extend([
+            f"<b>Seções totalizadas:</b> {sections}",
+            f"<b>Fonte:</b> {self.settings.source_label}",
+        ])
+        return "\n".join(lines), page, pages
+
+    async def _send_state_office_rich(
+        self,
+        message,
+        *,
+        scope: str,
+        office: str,
+        page: int = 0,
+        edit: bool = False,
+        force: bool = False,
+    ) -> None:
+        try:
+            result, _ = await self.results.fetch(
+                scope,
+                office=office,
+                force=force,
+            )
+            external_chat = (
+                getattr(getattr(message, "chat", None), "type", "private")
+                != "private"
+            )
+            rich_html = self._state_office_rich(
+                result,
+                office=office,
+                page=page,
+                external_chat=external_chat,
+            )
+            if edit:
+                await edit_rich_html(
+                    token=self.settings.telegram_bot_token,
+                    chat_id=message.chat_id,
+                    message_id=message.message_id,
+                    rich_html=rich_html,
+                )
+            else:
+                await send_rich_html(
+                    token=self.settings.telegram_bot_token,
+                    chat_id=message.chat_id,
+                    rich_html=rich_html,
+                )
+            return
+        except Exception:
+            log.exception(
+                "Falha enviando resultado estadual em Rich Message: %s/%s p%s",
+                scope,
+                office,
+                page,
+            )
+
+        # Never leave a callback looking dead just because Rich Messages fail.
+        try:
+            result, _ = await self.results.fetch(scope, office=office)
+            text, page, pages = self._state_fallback_text(
+                result,
+                office=office,
+                page=page,
+            )
+            markup = state_office_fallback_keyboard(
+                self.settings,
+                scope=scope,
+                office=office,
+                page=page,
+                pages=pages,
+                external_chat=(
+                    getattr(getattr(message, "chat", None), "type", "private")
+                    != "private"
+                ),
+            )
+            if edit:
+                await message.edit_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=markup,
+                )
+            else:
+                await message.reply_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=markup,
+                )
+        except Exception:
+            log.exception(
+                "Falha também no fallback estadual: %s/%s p%s",
+                scope,
+                office,
+                page,
+            )
+            if edit:
+                try:
+                    await message.edit_text(
+                        "Não consegui abrir este resultado agora. Tente novamente em instantes."
+                    )
+                except TelegramError:
+                    pass
+            else:
+                await message.reply_text(
+                    "Não consegui abrir este resultado agora. Tente novamente em instantes."
+                )
+
     async def inline_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         inline = update.inline_query
         if not inline:
