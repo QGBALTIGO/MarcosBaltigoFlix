@@ -496,11 +496,32 @@ body.tg-fullscreen #favoritesView{
 body.tg-fullscreen #favoritesView .section-head{
   margin-top:18px;
 }
+body.tg-fullscreen .summary{
+  margin-bottom:14px;
+}
 body.tg-fullscreen .summary-main{
-  padding-top:18px;
+  padding-top:16px;
+  padding-bottom:14px;
 }
 body.tg-fullscreen .gauge-wrap{
-  margin-top:-10px;
+  height:188px;
+  margin:-10px 0 0;
+}
+body.tg-fullscreen .gauge{
+  width:min(350px,92%);
+}
+body.tg-fullscreen .gauge-center{
+  top:84px;
+}
+body.tg-fullscreen .valid-share{
+  margin:-12px 0 14px;
+}
+body.tg-fullscreen .submetrics{
+  margin-top:14px;
+  padding-top:12px;
+}
+body.tg-fullscreen .analysis-btn{
+  height:56px;
 }
 body.tg-fullscreen .detail-hero{
   padding:18px 20px;
