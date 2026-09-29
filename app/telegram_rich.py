@@ -9,7 +9,7 @@ import httpx
 
 from .formatter import UF_NAMES
 from .g1_polls import G1Poll, G1PollChoice
-from .models import ElectionResult
+from .models import Candidate, ElectionResult
 from .result_service import is_pre_election
 
 
