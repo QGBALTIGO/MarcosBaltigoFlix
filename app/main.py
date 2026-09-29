@@ -17,6 +17,7 @@ from .config import get_settings
 from .g1_polls import G1PollClient
 from .monitor import monitor_loop
 from .poll_monitor import g1_poll_loop
+from .result_service import ResultService, is_pre_election
 from .storage import Storage
 from .tse import TSEClient, VALID_UFS
 
@@ -32,7 +33,8 @@ storage = Storage(settings.database_path)
 tse = TSEClient(settings)
 g1_polls = G1PollClient()
 candidates = CandidateDirectory(g1_polls)
-election_bot = ElectionBot(settings, tse, storage, g1_polls)
+results = ResultService(settings, tse, candidates)
+election_bot = ElectionBot(settings, results, storage, g1_polls)
 stop_event = asyncio.Event()
 monitor_task: asyncio.Task | None = None
 g1_task: asyncio.Task | None = None
@@ -58,7 +60,7 @@ async def lifespan(app: FastAPI):
             await tg_app.updater.start_polling(drop_pending_updates=False)
 
     monitor_task = asyncio.create_task(
-        monitor_loop(settings, tse, storage, election_bot, stop_event)
+        monitor_loop(settings, results, storage, election_bot, stop_event)
     )
     g1_task = asyncio.create_task(
         g1_poll_loop(settings, g1_polls, storage, election_bot, stop_event)
@@ -129,10 +131,11 @@ async def api_result(
     if office != "presidente" and scope == "br":
         raise HTTPException(status_code=400, detail="Este cargo exige uma UF")
     try:
-        result, _ = await tse.fetch(scope, office=office)
+        result, _ = await results.fetch(scope, office=office)
         data = result.to_dict()
         data["source_label"] = settings.source_label
-        data["simulation"] = settings.is_simulation
+        data["simulation"] = False
+        data["pre_election"] = is_pre_election(result)
         data["source_url"] = settings.public_results_url
         return data
     except Exception as exc:
