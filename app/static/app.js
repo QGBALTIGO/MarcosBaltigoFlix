@@ -24,7 +24,7 @@ if(savedScope!=='br'&&!savedScopeSource){
 let state={
   scope:savedScope,office:'presidente',result:null,poll:null,selectedCandidate:null,catalog:null,
   directory:null,directoryContext:null,candidateLimit:24,candidateQuery:'',pendingOffice:null,pendingPollOffice:null,
-  detailContext:null,requestSeq:0,pollContext:null
+  detailContext:null,requestSeq:0,pollContext:null,resultContext:null
 };
 
 try{if(window.Telegram?.WebApp){Telegram.WebApp.ready();Telegram.WebApp.expand();Telegram.WebApp.setHeaderColor('#080c12');Telegram.WebApp.setBackgroundColor('#080c12')}}catch(e){}
@@ -94,12 +94,9 @@ function applyDirectory(directory,fromCache=false){
   qs('#locationName').textContent=states[state.scope]||state.scope.toUpperCase();
   qs('#officeTitle').textContent=officeLabels[state.office];
   qs('#sectionsInfo').textContent=`${directory.count||0} candidaturas`;
-  const est=directory.estimate||{};
-  qs('#estimateMeta').textContent=est.available
-    ?`${est.institute} · ${est.date||'última rodada'} · pesquisa de intenção de voto`
-    :fromCache?'Candidaturas reais · atualizando…':'Candidaturas registradas no TSE';
   qs('#candidateSearchWrap').style.display=(directory.count||0)>20?'flex':'none';
   renderRealCandidates();
+  renderSummaryFromState();
 }
 function matchPollChoice(candidate,choices){
   const names=[norm(candidate.ballot_name),norm(candidate.name)].filter(Boolean);
@@ -110,11 +107,11 @@ function mergePollIntoDirectory(poll){
   const pollContext=`${poll.office}:${poll.scope}`;
   if(!state.directory||state.directoryContext!==pollContext)return;
   const choices=poll.choices||[];
-  state.directory.candidates.forEach(c=>{const m=matchPollChoice(c,choices);c.estimate_percentage=m?Number(m.percentage):null;c.estimate_history=m?(m.history||[]):[]});
+  state.directory.candidates.forEach(c=>{const m=matchPollChoice(c,choices);c.estimate_percentage=m?Number(m.percentage):0;c.estimate_history=m?(m.history||[]):[]});
   state.directory.estimate={available:true,source:'G1',institute:poll.institute,question:poll.question,date:poll.latest_date,margin_error_points:poll.margin_error_points,sample_size:poll.sample_size,field_period:poll.field_period,registrations:poll.registrations,source_url:poll.source_url};
-  state.directory.candidates.sort((a,b)=>(a.estimate_percentage==null)-(b.estimate_percentage==null)||(Number(b.estimate_percentage||0)-Number(a.estimate_percentage||0))||String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR'));
-  qs('#estimateMeta').textContent=`${poll.institute} · ${poll.latest_date||'última rodada'} · pesquisa de intenção de voto`;
+  state.directory.candidates.sort((a,b)=>Number(b.estimate_percentage||0)-Number(a.estimate_percentage||0)||String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR'));
   renderRealCandidates();
+  renderSummaryFromState();
 }
 async function loadEstimateInBackground(seq){
   if(!POLL_OFFICES.has(state.office))return;
@@ -130,7 +127,7 @@ async function loadEstimateInBackground(seq){
     if(seq!==state.requestSeq||state.office!==office||state.scope!==scope)return;
     state.poll=poll;state.pollContext=context;cacheWrite(pollKey(office,scope),poll);mergePollIntoDirectory(poll);
   }catch(e){
-    if(!cached&&seq===state.requestSeq&&state.directory){state.directory.estimate={available:false};qs('#estimateMeta').textContent='Candidaturas registradas no TSE · sem pesquisa comparável disponível';renderRealCandidates()}
+    if(!cached&&seq===state.requestSeq&&state.directory){state.directory.estimate={available:false};state.directory.candidates.forEach(c=>{c.estimate_percentage=0});renderRealCandidates();renderSummaryFromState()}
   }
 }
 async function loadOfficialResultInBackground(seq){
