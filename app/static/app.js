@@ -27,7 +27,50 @@ let state={
   detailContext:null,requestSeq:0,pollContext:null,resultContext:null
 };
 
-try{if(window.Telegram?.WebApp){Telegram.WebApp.ready();Telegram.WebApp.expand();Telegram.WebApp.setHeaderColor('#080c12');Telegram.WebApp.setBackgroundColor('#080c12')}}catch(e){}
+function syncTelegramViewport(){
+  const tg=window.Telegram?.WebApp;if(!tg)return;
+  const safe=tg.safeAreaInset||{},content=tg.contentSafeAreaInset||{};
+  const top=Math.max(Number(safe.top)||0,Number(content.top)||0);
+  const right=Math.max(Number(safe.right)||0,Number(content.right)||0);
+  const bottom=Math.max(Number(safe.bottom)||0,Number(content.bottom)||0);
+  const left=Math.max(Number(safe.left)||0,Number(content.left)||0);
+  const root=document.documentElement;
+  root.style.setProperty('--tg-safe-top',top+'px');
+  root.style.setProperty('--tg-safe-right',right+'px');
+  root.style.setProperty('--tg-safe-bottom',bottom+'px');
+  root.style.setProperty('--tg-safe-left',left+'px');
+  if(Number(tg.viewportStableHeight)>0)root.style.setProperty('--tg-stable-height',Number(tg.viewportStableHeight)+'px');
+  document.body.classList.toggle('tg-fullscreen',!!tg.isFullscreen);
+}
+function requestTelegramFullscreen(){
+  const tg=window.Telegram?.WebApp;if(!tg)return;
+  try{
+    tg.ready();
+    tg.expand();
+    tg.setHeaderColor('#080c12');
+    tg.setBackgroundColor('#080c12');
+    if(typeof tg.setBottomBarColor==='function')tg.setBottomBarColor('#080c12');
+    if(typeof tg.disableVerticalSwipes==='function')tg.disableVerticalSwipes();
+    syncTelegramViewport();
+    if(typeof tg.requestFullscreen==='function'&&!tg.isFullscreen)tg.requestFullscreen();
+  }catch(e){syncTelegramViewport()}
+}
+function initTelegramMiniApp(){
+  const tg=window.Telegram?.WebApp;if(!tg)return;
+  try{
+    if(typeof tg.onEvent==='function'){
+      tg.onEvent('safeAreaChanged',syncTelegramViewport);
+      tg.onEvent('contentSafeAreaChanged',syncTelegramViewport);
+      tg.onEvent('viewportChanged',syncTelegramViewport);
+      tg.onEvent('fullscreenChanged',syncTelegramViewport);
+      tg.onEvent('fullscreenFailed',()=>{syncTelegramViewport();try{tg.expand()}catch(e){}});
+      tg.onEvent('activated',()=>{syncTelegramViewport();if(!tg.isFullscreen)requestTelegramFullscreen()});
+    }
+  }catch(e){}
+  requestTelegramFullscreen();
+  document.addEventListener('pointerdown',()=>{if(!tg.isFullscreen)requestTelegramFullscreen()},{once:true,capture:true});
+}
+initTelegramMiniApp();
 
 function isStateOffice(office){return office!=='presidente'}
 async function requestJson(url,{cache='no-cache',timeout=8000}={}){
