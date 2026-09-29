@@ -108,11 +108,10 @@ async def run(full: bool) -> int:
         smoke.ok("gaugeVoid" in html and "gaugeSubJudice" in html, "five-segment gauge missing")
         smoke.ok("window.addEventListener('unhandledrejection'" in html, "frontend fatal-error boundary missing")
         smoke.ok("\\n<link" not in html, "literal \\n leaked into HTML head")
-        rj_flag = STATIC_DIR / "flags" / "rj.svg"
-        smoke.ok(rj_flag.exists(), "local RJ flag asset missing")
-        if rj_flag.exists():
-            smoke.ok("<svg" in rj_flag.read_text(encoding="utf-8").lower(), "RJ flag asset is not valid SVG text")
-        smoke.ok("if(scope==='rj')return'/static/flags/rj.svg?v=1'" in js, "RJ is not using local flag asset")
+        smoke.ok(
+            "Bandeira_do_estado_do_Rio_de_Janeiro.svg/330px-Bandeira_do_estado_do_Rio_de_Janeiro.svg.png" in js,
+            "RJ is not using the rendered PNG flag fallback",
+        )
 
         # Every simple #id referenced through qs() must exist exactly once in the HTML.
         html_ids = re.findall(r'\bid="([^"]+)"', html)
@@ -282,8 +281,9 @@ async def run(full: bool) -> int:
                 for item in utf8_detail.get("assets", [])
             )
             smoke.ok("�" not in utf8_assets_text, "UTF-8 probe: replacement character found in assets")
-            smoke.ok("Benefício" in utf8_assets_text, "UTF-8 probe: Benefício not decoded correctly")
-            smoke.ok("Construção" in utf8_assets_text, "UTF-8 probe: Construção not decoded correctly")
+            smoke.ok("CONSTRUÇÃO" in utf8_assets_text, "UTF-8 probe: CONSTRUÇÃO not decoded correctly")
+            smoke.ok("PUBLICAÇÕES" in utf8_assets_text, "UTF-8 probe: PUBLICAÇÕES not decoded correctly")
+            smoke.ok("APLICAÇÃO" in utf8_assets_text, "UTF-8 probe: APLICAÇÃO not decoded correctly")
             smoke.ok("SÃO BERNARDO DO CAMPO" in utf8_assets_text, "UTF-8 probe: São Bernardo text not decoded correctly")
         except Exception as exc:
             smoke.failures.append(f"UTF-8 detail probe: {type(exc).__name__}: {exc}")
