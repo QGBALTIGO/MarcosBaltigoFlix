@@ -48,3 +48,11 @@ def test_colinha_search_is_inline_in_each_card():
     assert "data-colinha-name-input" in js
     assert "data-colinha-inline-results" in js
     assert ".colinha-inline-search-box" in css
+
+
+def test_colinha_generated_image_promotes_result_bot():
+    js = (STATIC / "colinha.js").read_text(encoding="utf-8")
+
+    assert "@ResultadoEleicoes_Bot" in js
+    assert "Acompanhe resultados e candidatos no Telegram" in js
+    assert "Confira os números antes de votar. Ferramenta independente; não registra voto." not in js
