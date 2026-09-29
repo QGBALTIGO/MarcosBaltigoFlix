@@ -4,6 +4,7 @@ import json
 import mimetypes
 import os
 import shutil
+import struct
 import tempfile
 import threading
 import time
@@ -425,6 +426,9 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
         assert download.suggested_filename == "minha-colinha-MS.png"
         path = Path(download.path())
         assert path.stat().st_size > 1000, path.stat().st_size
+        png = path.read_bytes()
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        assert struct.unpack(">II", png[16:24]) == (1080, 1350)
         shutil.copy2(path, ARTIFACTS / "generated-colinha-MS.png")
 
         # Share falls back to the same generated image when Web Share is unavailable.
@@ -647,6 +651,91 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
         context.close()
 
 
+
+def test_input_sanitization_and_limits(browser: Browser, base_url: str) -> None:
+    context = new_context(browser)
+    try:
+        page, errors = page_with_errors(context, base_url)
+        open_colinha(page)
+
+        fill_vote(page, "federal", "1a3-1 3 999")
+        expect(page.locator('[data-colinha-input="federal"]')).to_have_value("1313")
+        expect(page.locator('[data-colinha-match="federal"]')).to_contain_text("ANA FEDERAL")
+
+        fill_vote(page, "senador1", "1-3-3-9")
+        expect(page.locator('[data-colinha-input="senador1"]')).to_have_value("133")
+
+        fill_vote(page, "governador", "abc22")
+        expect(page.locator('[data-colinha-input="governador"]')).to_have_value("22")
+        expect(page.locator('[data-colinha-match="governador"]')).to_contain_text("FELIPE GOVERNO")
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_state_scoped_persistence(browser: Browser, base_url: str) -> None:
+    context = new_context(browser, scope="ms")
+    try:
+        page, errors = page_with_errors(context, base_url)
+        open_colinha(page)
+        fill_vote(page, "federal", "1313")
+        expect(page.locator('[data-colinha-input="federal"]')).to_have_value("1313")
+
+        page.locator("#colinhaUfBtn").click()
+        page.locator('#stateList [data-state="df"]').click()
+        expect(page.locator("#colinhaUfText")).to_have_text("DF")
+        expect(page.locator('[data-colinha-input="federal"]')).to_have_value("")
+        fill_vote(page, "federal", "2211")
+
+        page.locator("#colinhaUfBtn").click()
+        page.locator('#stateList [data-state="ms"]').click()
+        expect(page.locator("#colinhaUfText")).to_have_text("MS")
+        expect(page.locator('[data-colinha-input="federal"]')).to_have_value("1313")
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_inline_search_switch_and_accents(browser: Browser, base_url: str) -> None:
+    context = new_context(browser)
+    try:
+        page, errors = page_with_errors(context, base_url)
+        open_colinha(page)
+
+        page.locator('[data-colinha-search="federal"]').click()
+        expect(page.locator('[data-colinha-inline-search="federal"]')).to_be_visible()
+
+        page.locator('[data-colinha-search="governador"]').click()
+        expect(page.locator('[data-colinha-inline-search="federal"]')).to_be_hidden()
+        expect(page.locator('[data-colinha-search="federal"]')).to_be_visible()
+        expect(page.locator('[data-colinha-inline-search="governador"]')).to_be_visible()
+
+        page.locator('[data-colinha-search="presidente"]').click()
+        page.locator('[data-colinha-name-input="presidente"]').fill("presidencia")
+        expect(page.locator('[data-colinha-inline-results="presidente"] .colinha-inline-item')).to_have_count(2)
+        expect(page.locator('[data-colinha-inline-results="presidente"]')).to_contain_text("GABI PRESIDÊNCIA")
+        assert not errors, errors
+    finally:
+        context.close()
+
+
+def test_empty_colinha_training_allows_blank(browser: Browser, base_url: str) -> None:
+    context = new_context(browser)
+    try:
+        page, errors = page_with_errors(context, base_url)
+        open_colinha(page)
+        page.locator("#colinhaTrain").click()
+        page.locator("#urnaBlank").click()
+        expect(page.locator("#urnaCandidate")).to_contain_text("VOTO EM BRANCO")
+        expect(page.locator("#urnaCompare")).to_contain_text("não anotou")
+        assert page.locator("#urnaConfirm").is_enabled()
+        page.locator("#urnaConfirm").click()
+        expect(page.locator("#urnaOfficeTitle")).to_contain_text("DEPUTADO ESTADUAL")
+        assert not errors, errors
+    finally:
+        context.close()
+
+
 def test_accessibility_basics(browser: Browser, base_url: str) -> None:
     context = new_context(browser)
     try:
@@ -689,6 +778,10 @@ def run_suite(playwright: Playwright, base_url: str) -> None:
         ("corrupt_storage_recovers", test_corrupt_storage_recovers),
         ("responsive_matrix", test_responsive_matrix),
         ("telegram_fullscreen_and_keyboard_guard", test_telegram_fullscreen_and_keyboard_guard),
+        ("input_sanitization_and_limits", test_input_sanitization_and_limits),
+        ("state_scoped_persistence", test_state_scoped_persistence),
+        ("inline_search_switch_and_accents", test_inline_search_switch_and_accents),
+        ("empty_colinha_training_allows_blank", test_empty_colinha_training_allows_blank),
         ("accessibility_basics", test_accessibility_basics),
     ]
     failures: list[tuple[str, BaseException]] = []
