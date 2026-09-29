@@ -268,7 +268,11 @@ async def api_candidate_detail(
         data = await candidates.detail(office, scope, candidate_id)
         return JSONResponse(
             data,
-            headers={"Cache-Control": "public, max-age=300, stale-while-revalidate=900"},
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

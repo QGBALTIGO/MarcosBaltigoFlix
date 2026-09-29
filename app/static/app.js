@@ -208,7 +208,7 @@ function fillCandidateDetail(c){
   const assets=c.assets||[];qs('#assetsCard').innerHTML=assets.length?`<div class="asset-total"><small>Patrimônio total declarado</small><strong>${money(c.assets_total)}</strong><span class="muted">${assets.length} bens declarados</span></div><div class="asset-list">${assets.slice(0,12).map(a=>`<div class="asset-item"><b><span>${esc(a.type||'Bem')}</span><span>${money(a.value)}</span></b><small>${esc(a.description||'')}</small></div>`).join('')}</div>`:'<div class="empty-detail">Detalhes patrimoniais carregam quando disponíveis na base pública.</div>';
 }
 async function loadCandidateDetail(c,context){
-  try{const d=await requestJson(`/api/candidates/${encodeURIComponent(context.office)}/${encodeURIComponent(context.scope)}/${encodeURIComponent(c.id)}`,{cache:'force-cache',timeout:8000});if(state.selectedCandidate?.id!==c.id)return;state.selectedCandidate={...c,...d,_office:context.office,_scope:context.scope};fillCandidateDetail(state.selectedCandidate)}catch(e){qs('#assetsCard').innerHTML='<div class="empty-detail">Não foi possível carregar os detalhes agora.</div>'}
+  try{const d=await requestJson(`/api/candidates/${encodeURIComponent(context.office)}/${encodeURIComponent(context.scope)}/${encodeURIComponent(c.id)}?v=2`,{cache:'no-store',timeout:8000});if(state.selectedCandidate?.id!==c.id)return;state.selectedCandidate={...c,...d,_office:context.office,_scope:context.scope};fillCandidateDetail(state.selectedCandidate)}catch(e){qs('#assetsCard').innerHTML='<div class="empty-detail">Não foi possível carregar os detalhes agora.</div>'}
 }
 
 function renderFavorites(){
