@@ -48,6 +48,7 @@ async def run(full: bool) -> int:
         smoke.ok("id=\"candidateArea\"" in html, "HTML missing candidateArea")
         smoke.ok("id=\"candidateSearch\"" in html, "HTML missing candidateSearch")
         smoke.ok("id=\"candidateMore\"" in html, "HTML missing candidateMore")
+        smoke.ok("id=\"financeCard\"" in html, "HTML missing financeCard")
         smoke.ok("/api/candidates?office=" in js, "JS missing candidate API")
         smoke.ok("const qs=s=>document.querySelector(s),qsa=s=>[...document.querySelectorAll(s)];" in js, "DOM selector helpers are not explicit")
         smoke.ok("qsa('.nav-btn').forEach" in js, "nav buttons are not bound as a collection")
@@ -95,6 +96,8 @@ async def run(full: bool) -> int:
         smoke.ok("CloudStorage" in js, "Telegram CloudStorage persistence missing")
         smoke.ok("election_scope_source" in js, "location source persistence missing")
         smoke.ok("function stateFlagUrl" in js and "function flagBadgeHtml" in js, "state flag renderer missing")
+        smoke.ok("thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Bandeira_do_estado_do_Rio_de_Janeiro.svg" in js, "Rio de Janeiro flag source is not the PNG fallback")
+        smoke.ok("function renderFinance(c)" in js, "campaign finance renderer missing")
         smoke.ok("flagBadgeHtml(k)" in js, "state list is not rendering flag images")
         smoke.ok("/api/location/reverse?lat=" in js, "same-origin reverse geolocation missing")
         smoke.ok("class=\"uf-badge\"" not in js, "old UF text badges are still rendered")
@@ -176,6 +179,19 @@ async def run(full: bool) -> int:
         for candidate in president.get("candidates", []):
             smoke.ok(bool(candidate.get("photo")), f"president {candidate.get('id')}: missing high-resolution photo")
 
+        lula = next((c for c in president.get("candidates", []) if _n(c.get("ballot_name")) == "lula"), None)
+        if lula:
+            lula_detail = await asyncio.wait_for(
+                candidates.detail("presidente", "br", lula["id"]),
+                timeout=25,
+            )
+            lula_text = json.dumps(
+                {"assets": lula_detail.get("assets"), "finance": lula_detail.get("finance")},
+                ensure_ascii=False,
+            )
+            smoke.ok("�" not in lula_text, "Lula detail contains replacement characters")
+            smoke.ok(isinstance(lula_detail.get("finance"), dict), "Lula finance missing")
+
         # 3) Repeat candidate matrix enough times to cross 1,000 assertions without hammering external sources.
         repeats = 10 if full else 2
         for _ in range(repeats):
@@ -239,7 +255,16 @@ async def run(full: bool) -> int:
                 smoke.ok(bool(detail.get("number")), f"detail {office}/{scope}: missing number")
                 smoke.ok(bool(detail.get("party")), f"detail {office}/{scope}: missing party")
                 smoke.ok(isinstance(detail.get("assets"), list), f"detail {office}/{scope}: assets not list")
+                smoke.ok(isinstance(detail.get("finance"), dict), f"detail {office}/{scope}: finance not dict")
+                finance = detail.get("finance") or {}
+                smoke.ok(float(finance.get("receipts_total") or 0) >= 0, f"detail {office}/{scope}: invalid receipts total")
+                smoke.ok(float(finance.get("expenses_total") or 0) >= 0, f"detail {office}/{scope}: invalid expenses total")
                 smoke.ok(isinstance(detail.get("social_links"), list), f"detail {office}/{scope}: social_links not list")
+                replacement_text = json.dumps(
+                    {"assets": detail.get("assets"), "finance": detail.get("finance")},
+                    ensure_ascii=False,
+                )
+                smoke.ok("�" not in replacement_text, f"detail {office}/{scope}: replacement character in financial data")
                 detail_text = json.dumps(detail, ensure_ascii=False)
                 smoke.ok("�" not in detail_text, f"detail {office}/{scope}: Unicode replacement character found")
                 smoke.ok("Ã£" not in detail_text and "Ã§" not in detail_text and "Â" not in detail_text, f"detail {office}/{scope}: mojibake found")

@@ -23,6 +23,15 @@ RAW_TSE_MIRROR = (
     "https://raw.githubusercontent.com/leofn/tse-candidatos-2026/main/dados/{file}"
 )
 
+RAW_TSE_ASSETS = (
+    "https://raw.githubusercontent.com/pedrorosemberg/eleicoes.metadax.org/"
+    "prod/data/2026/bens/{scope}.json"
+)
+RAW_TSE_FINANCES = (
+    "https://raw.githubusercontent.com/pedrorosemberg/eleicoes.metadax.org/"
+    "prod/data/2026/financas/{scope}.json"
+)
+
 OFFICE_FILES = {
     "presidente": "PRESIDENTE",
     "governador": "GOVERNADOR",
@@ -71,6 +80,12 @@ def _money_br_to_float(value: str | None) -> float:
         return float(raw.replace(".", "").replace(",", "."))
     except ValueError:
         return 0.0
+
+
+def _number_to_float(value: Any) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return _money_br_to_float(value)
 
 
 def _candidate_scope(office: str, scope: str) -> str:
@@ -329,6 +344,66 @@ class CandidateDirectory:
                 grouped.setdefault(sq, []).append(row)
         return self._put(key, grouped)
 
+    async def _asset_map(self, scope: str) -> dict[str, list[dict[str, Any]]]:
+        source_scope = scope.upper()
+        key = f"assetmap:{source_scope}"
+        cached = self._fresh(key)
+        if cached is not None:
+            return cached
+
+        data = await self._json(RAW_TSE_ASSETS.format(scope=source_scope))
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        if isinstance(data, list):
+            for row in data:
+                sq = str(row.get("sqCandidato") or "").strip()
+                if sq:
+                    grouped.setdefault(sq, []).append(row)
+        return self._put(key, grouped)
+
+    async def _finance_map(self, scope: str) -> dict[str, dict[str, list[dict[str, Any]]]]:
+        source_scope = scope.upper()
+        key = f"financemap:{source_scope}"
+        cached = self._fresh(key)
+        if cached is not None:
+            return cached
+
+        data = await self._json(RAW_TSE_FINANCES.format(scope=source_scope))
+        grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
+
+        if isinstance(data, dict):
+            for row in data.get("receitas") or []:
+                sq = str(row.get("sqCandidato") or "").strip()
+                if sq:
+                    grouped.setdefault(sq, {"receipts": [], "expenses": []})["receipts"].append(row)
+            for row in data.get("despesas") or []:
+                sq = str(row.get("sqCandidato") or "").strip()
+                if sq:
+                    grouped.setdefault(sq, {"receipts": [], "expenses": []})["expenses"].append(row)
+
+        return self._put(key, grouped)
+
+    @staticmethod
+    def _top_donors(rows: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
+        totals: dict[str, float] = {}
+        for row in rows:
+            name = _clean(row.get("doador")) or "Origem não identificada"
+            totals[name] = totals.get(name, 0.0) + _number_to_float(row.get("valor"))
+        return [
+            {"name": name, "value": round(value, 2)}
+            for name, value in sorted(totals.items(), key=lambda item: item[1], reverse=True)[:limit]
+        ]
+
+    @staticmethod
+    def _top_suppliers(rows: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
+        totals: dict[str, float] = {}
+        for row in rows:
+            name = _clean(row.get("fornecedor")) or "Fornecedor não identificado"
+            totals[name] = totals.get(name, 0.0) + _number_to_float(row.get("valor"))
+        return [
+            {"name": name, "value": round(value, 2)}
+            for name, value in sorted(totals.items(), key=lambda item: item[1], reverse=True)[:limit]
+        ]
+
     async def detail(self, office: str, scope: str, candidate_id: str) -> dict[str, Any]:
         listing = await self.list(office, scope, include_poll=False)
         candidate = next(
@@ -339,30 +414,42 @@ class CandidateDirectory:
             raise ValueError("Candidatura não encontrada.")
 
         source_scope = _candidate_scope(office, scope)
-        try:
-            main_map, complement_map, assets_map, social_map = await asyncio.gather(
-                self._csv_map(source_scope, "candidate"),
-                self._csv_map(source_scope, "complement"),
-                self._csv_map(source_scope, "assets"),
-                self._csv_map(source_scope, "social"),
-            )
-        except Exception:
-            main_map, complement_map, assets_map, social_map = {}, {}, {}, {}
+        results = await asyncio.gather(
+            self._csv_map(source_scope, "candidate"),
+            self._csv_map(source_scope, "complement"),
+            self._csv_map(source_scope, "social"),
+            self._asset_map(source_scope),
+            self._finance_map(source_scope),
+            return_exceptions=True,
+        )
+
+        main_map = {} if isinstance(results[0], Exception) else results[0]
+        complement_map = {} if isinstance(results[1], Exception) else results[1]
+        social_map = {} if isinstance(results[2], Exception) else results[2]
+        assets_map = {} if isinstance(results[3], Exception) else results[3]
+        finance_map = {} if isinstance(results[4], Exception) else results[4]
 
         base = (main_map.get(str(candidate_id)) or [{}])[0]
         complement = (complement_map.get(str(candidate_id)) or [{}])[0]
         assets_rows = assets_map.get(str(candidate_id)) or []
         social_rows = social_map.get(str(candidate_id)) or []
+        finance_rows = finance_map.get(str(candidate_id)) or {"receipts": [], "expenses": []}
 
         assets = [
             {
-                "type": _clean(row.get("DS_TIPO_BEM_CANDIDATO")),
-                "description": _clean(row.get("DS_BEM_CANDIDATO")),
-                "value": _money_br_to_float(row.get("VR_BEM_CANDIDATO")),
+                "type": "",
+                "description": _clean(row.get("descricao")),
+                "value": _number_to_float(row.get("valor")),
             }
             for row in assets_rows
+            if _clean(row.get("descricao"))
         ]
         assets.sort(key=lambda item: item["value"], reverse=True)
+
+        receipts = finance_rows.get("receipts") or []
+        expenses = finance_rows.get("expenses") or []
+        receipts_total = round(sum(_number_to_float(row.get("valor")) for row in receipts), 2)
+        expenses_total = round(sum(_number_to_float(row.get("valor")) for row in expenses), 2)
 
         candidate.update(
             {
@@ -375,19 +462,32 @@ class CandidateDirectory:
                 "reelection": _clean(complement.get("ST_REELEICAO")),
                 "judgment_status": _clean(complement.get("DS_SITUACAO_JULGAMENTO")),
                 "ballot_status": _clean(complement.get("DS_SITUACAO_CANDIDATO_URNA")),
-                "campaign_spending_limit": _money_br_to_float(
-                    complement.get("VR_DESPESA_MAX_CAMPANHA")
+                "campaign_spending_limit": (
+                    _money_br_to_float(complement.get("VR_DESPESA_MAX_CAMPANHA"))
+                    or float(candidate.get("campaign_spending_limit") or 0)
                 ),
                 "assets": assets,
                 "assets_total": round(sum(item["value"] for item in assets), 2),
+                "finance": {
+                    "receipts_total": receipts_total,
+                    "expenses_total": expenses_total,
+                    "receipts_count": len(receipts),
+                    "expenses_count": len(expenses),
+                    "top_donors": self._top_donors(receipts),
+                    "top_suppliers": self._top_suppliers(expenses),
+                    "spending_limit": (
+                        _money_br_to_float(complement.get("VR_DESPESA_MAX_CAMPANHA"))
+                        or float(candidate.get("campaign_spending_limit") or 0)
+                    ),
+                },
                 "social_links": [
                     _clean(row.get("DS_URL"))
                     for row in social_rows
                     if _clean(row.get("DS_URL"))
                 ],
                 "detail_source_note": (
-                    "Dados pessoais, bens e redes obtidos de espelho do conjunto "
-                    "Candidatos 2026 do TSE. Situações processuais podem mudar."
+                    "Dados pessoais, bens, redes e prestação de contas obtidos de "
+                    "espelhos automatizados dos conjuntos públicos do TSE."
                 ),
             }
         )

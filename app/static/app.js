@@ -44,7 +44,7 @@ async function requestJson(url,{cache='no-cache',timeout=8000}={}){
     throw error;
   }finally{clearTimeout(timer)}
 }
-function stateFlagUrl(scope){if(scope==='br')return'https://flagcdn.com/br.svg';if(scope==='rj')return'/static/flags/rj.svg?v=1';const slug=stateFlagSlugs[scope];return slug?`${STATE_FLAG_BASE}/${slug}.svg`:''}
+function stateFlagUrl(scope){if(scope==='br')return'https://flagcdn.com/br.svg';if(scope==='rj')return'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Bandeira_do_estado_do_Rio_de_Janeiro.svg/330px-Bandeira_do_estado_do_Rio_de_Janeiro.svg.png';const slug=stateFlagSlugs[scope];return slug?`${STATE_FLAG_BASE}/${slug}.svg`:''}
 function flagBadgeHtml(scope,cls='state-flag'){const url=stateFlagUrl(scope),uf=scope==='br'?'BR':String(scope||'').toUpperCase();return url?`<span class="${cls}" data-uf="${esc(uf)}"><img src="${esc(url)}" alt="" loading="lazy" decoding="async" onerror="this.remove();this.parentElement.classList.add('flag-fallback')"></span>`:`<span class="${cls} flag-fallback" data-uf="${esc(uf)}"></span>`}
 function cloudGet(key){return new Promise(resolve=>{try{const cloud=window.Telegram?.WebApp?.CloudStorage;if(!cloud?.getItem)return resolve('');cloud.getItem(key,(err,value)=>resolve(err?'':String(value||'')))}catch(e){resolve('')}})}
 function cloudSet(key,value){try{const cloud=window.Telegram?.WebApp?.CloudStorage;if(cloud?.setItem)cloud.setItem(key,String(value||''),()=>{})}catch(e){}}
@@ -203,12 +203,35 @@ function openCandidate(c,context={office:state.office,scope:state.scope}){
   const estimate=c.estimate_percentage==null?'Sem pesquisa disponível':pct(c.estimate_percentage);
   qs('#detailResult').innerHTML=`<div class="info-stat"><small>Pesquisa</small><b>${esc(estimate)}</b></div><div class="info-stat"><small>Número</small><b>${esc(c.number||'—')}</b></div><div class="info-stat"><small>Partido</small><b>${esc(c.party||'—')}</b></div><div class="info-stat"><small>Cargo</small><b>${esc(officeLabels[context.office]||c.office||'—')}</b></div>`;qs('#viceSection').style.display='none';fillCandidateDetail(c);openFull('#candidateModal');loadCandidateDetail(c,context);
 }
+function renderFinance(c){
+  const card=qs('#financeCard');if(!card)return;
+  if(c.finance===undefined){card.innerHTML='<div class="empty-detail">Carregando prestação de contas…</div>';return}
+  const f=c.finance||{},hasMovement=Number(f.receipts_count||0)>0||Number(f.expenses_count||0)>0;
+  if(!hasMovement){card.innerHTML='<div class="empty-detail">Nenhuma receita ou despesa encontrada para esta candidatura na base pública até a última atualização.</div>';return}
+  const donors=(f.top_donors||[]),suppliers=(f.top_suppliers||[]);
+  card.innerHTML=`
+    <div class="finance-grid">
+      <div class="finance-stat finance-income"><small>Receitas</small><strong>${money(f.receipts_total)}</strong><span>${fmt(f.receipts_count)} lançamentos</span></div>
+      <div class="finance-stat finance-expense"><small>Despesas contratadas</small><strong>${money(f.expenses_total)}</strong><span>${fmt(f.expenses_count)} lançamentos</span></div>
+      <div class="finance-stat"><small>Teto de gastos</small><strong>${Number(f.spending_limit||0)>0?money(f.spending_limit):'—'}</strong><span>Limite informado</span></div>
+    </div>
+    ${donors.length?`<div class="finance-subtitle">Principais doadores</div><div class="finance-list">${donors.map(x=>`<div class="finance-row"><span>${esc(x.name)}</span><b>${money(x.value)}</b></div>`).join('')}</div>`:''}
+    ${suppliers.length?`<div class="finance-subtitle">Principais fornecedores</div><div class="finance-list">${suppliers.map(x=>`<div class="finance-row"><span>${esc(x.name)}</span><b>${money(x.value)}</b></div>`).join('')}</div>`:''}
+    <div class="finance-note">Valores de prestação de contas eleitoral publicados na base pública consultada.</div>
+  `;
+}
 function fillCandidateDetail(c){
   qs('#personalFullName').textContent=c.name||'—';qs('#personalBirth').textContent=c.birth_date||'—';qs('#personalBirthplace').textContent=[c.birth_city,c.birth_state].filter(Boolean).join(' - ')||'—';qs('#personalEducation').textContent=c.education||'—';qs('#personalOccupation').textContent=c.occupation||'—';qs('#personalCivil').textContent=c.civil_status||'—';qs('#personalGender').textContent=c.gender||'—';qs('#personalRace').textContent=c.race||'—';qs('#detailCoalition').innerHTML=c.coalition||c.coalition_composition?`<b>${esc(c.coalition||'Composição')}</b><br><span class="muted">${esc(c.coalition_composition||'')}</span>`:'Sem coligação/federação informada.';
-  const assets=c.assets||[];qs('#assetsCard').innerHTML=assets.length?`<div class="asset-total"><small>Patrimônio total declarado</small><strong>${money(c.assets_total)}</strong><span class="muted">${assets.length} bens declarados</span></div><div class="asset-list">${assets.slice(0,12).map(a=>`<div class="asset-item"><b><span>${esc(a.type||'Bem')}</span><span>${money(a.value)}</span></b><small>${esc(a.description||'')}</small></div>`).join('')}</div>`:'<div class="empty-detail">Detalhes patrimoniais carregam quando disponíveis na base pública.</div>';
+  if(c.assets===undefined){qs('#assetsCard').innerHTML='<div class="empty-detail">Carregando patrimônio declarado…</div>'}
+  else{
+    const assets=c.assets||[];
+    qs('#assetsCard').innerHTML=assets.length?`<div class="asset-total"><small>Patrimônio total declarado</small><strong>${money(c.assets_total)}</strong><span class="muted">${assets.length} bens declarados</span></div><div class="asset-list">${assets.slice(0,18).map(a=>{const title=a.type||a.description||'Bem declarado',subtitle=a.type&&a.description&&a.type!==a.description?a.description:'';return `<div class="asset-item"><b><span>${esc(title)}</span><span>${money(a.value)}</span></b>${subtitle?`<small>${esc(subtitle)}</small>`:''}</div>`}).join('')}</div>`:'<div class="empty-detail">Nenhum bem declarado encontrado na base pública.</div>';
+  }
+  renderFinance(c);
 }
+
 async function loadCandidateDetail(c,context){
-  try{const d=await requestJson(`/api/candidates/${encodeURIComponent(context.office)}/${encodeURIComponent(context.scope)}/${encodeURIComponent(c.id)}?v=2`,{cache:'no-store',timeout:8000});if(state.selectedCandidate?.id!==c.id)return;state.selectedCandidate={...c,...d,_office:context.office,_scope:context.scope};fillCandidateDetail(state.selectedCandidate)}catch(e){qs('#assetsCard').innerHTML='<div class="empty-detail">Não foi possível carregar os detalhes agora.</div>'}
+  try{const d=await requestJson(`/api/candidates/${encodeURIComponent(context.office)}/${encodeURIComponent(context.scope)}/${encodeURIComponent(c.id)}?v=3`,{cache:'no-store',timeout:8000});if(state.selectedCandidate?.id!==c.id)return;state.selectedCandidate={...c,...d,_office:context.office,_scope:context.scope};fillCandidateDetail(state.selectedCandidate)}catch(e){qs('#assetsCard').innerHTML='<div class="empty-detail">Não foi possível carregar os detalhes agora.</div>';qs('#financeCard').innerHTML='<div class="empty-detail">Não foi possível carregar a prestação de contas agora.</div>'}
 }
 
 function renderFavorites(){
