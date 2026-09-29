@@ -401,14 +401,15 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
         fill_vote(page, "presidente", "13")
         expect(page.locator('[data-colinha-match="presidente"]')).to_contain_text("GABI PRESIDÊNCIA")
 
-        # Search-by-name path.
+        # Search-by-name path is inline inside the same office card.
         page.locator('[data-colinha-clear="estadual"]').click()
         page.locator('[data-colinha-search="estadual"]').click()
-        assert "show" in (page.locator("#colinhaPickerSheet").get_attribute("class") or "")
-        page.locator("#colinhaPickerSearch").fill("bruno")
-        expect(page.locator("#colinhaPickerList .colinha-picker-item")).to_have_count(1)
-        page.locator("#colinhaPickerList .colinha-picker-item").click()
+        expect(page.locator('[data-colinha-inline-search="estadual"]')).to_be_visible()
+        page.locator('[data-colinha-name-input="estadual"]').fill("bruno")
+        expect(page.locator('[data-colinha-inline-results="estadual"] .colinha-inline-item')).to_have_count(1)
+        page.locator('[data-colinha-inline-results="estadual"] .colinha-inline-item').click()
         expect(page.locator('[data-colinha-input="estadual"]')).to_have_value("13131")
+        expect(page.locator('[data-colinha-inline-search="estadual"]')).to_be_hidden()
 
         # Persistence survives a reload and re-entry into the tab.
         page.reload(wait_until="domcontentloaded")
@@ -573,7 +574,7 @@ def test_source_failure_is_visible(browser: Browser, base_url: str) -> None:
         assert "is-invalid" in (page.locator('[data-colinha-slot="estadual"]').get_attribute("class") or "")
 
         page.locator('[data-colinha-search="estadual"]').click()
-        expect(page.locator("#colinhaPickerList")).to_contain_text("Não foi possível carregar", timeout=10_000)
+        expect(page.locator('[data-colinha-inline-results="estadual"]')).to_contain_text("Não foi possível carregar", timeout=10_000)
         assert not errors, errors
     finally:
         context.close()
