@@ -1,4 +1,11 @@
-from app.bot import president_fallback_keyboard, start_keyboard, start_message_text, states_keyboard
+from app.bot import (
+    parse_state_inline_query,
+    president_fallback_keyboard,
+    start_keyboard,
+    start_message_text,
+    state_office_keyboard,
+    states_keyboard,
+)
 from app.config import Settings
 
 
@@ -73,7 +80,7 @@ def test_states_keyboard_has_all_27_ufs_and_back_button():
     assert len(uf_buttons) == 27
     assert uf_buttons[0].text == "AC"
     assert uf_buttons[-1].text == "TO"
-    assert all(button.callback_data.startswith("result:") for button in uf_buttons)
+    assert all(button.callback_data.startswith("state:") for button in uf_buttons)
     assert keyboard[-1][0].text == "⬅️ Voltar"
     assert keyboard[-1][0].callback_data == "start:home"
 
@@ -90,3 +97,41 @@ def test_president_fallback_keyboard_has_only_four_requested_actions():
     assert keyboard[0][1].web_app is not None
     assert keyboard[1][0].callback_data == "start:home"
     assert keyboard[1][1].switch_inline_query == "presidente br"
+
+
+
+def test_state_office_keyboard_has_four_offices_and_back():
+    keyboard = state_office_keyboard("ms").inline_keyboard
+    assert [[button.text for button in row] for row in keyboard] == [
+        ["🏛️ Deputado Federal", "🏢 Deputado Estadual"],
+        ["🗳️ Senador", "🏛️ Governador"],
+        ["⬅️ Estados"],
+    ]
+    assert keyboard[0][0].callback_data == "state:open:ms:federal:0"
+    assert keyboard[0][1].callback_data == "state:open:ms:estadual:0"
+    assert keyboard[1][0].callback_data == "state:open:ms:senador:0"
+    assert keyboard[1][1].callback_data == "state:open:ms:governador:0"
+    assert keyboard[2][0].callback_data == "start:states"
+
+
+def test_df_uses_deputado_distrital_label():
+    keyboard = state_office_keyboard("df").inline_keyboard
+    assert keyboard[0][1].text == "🏢 Deputado Distrital"
+
+
+def test_state_inline_parser_covers_all_ufs_and_offices():
+    offices = ("federal", "estadual", "senador", "governador")
+    scopes = (
+        "ac","al","ap","am","ba","ce","df","es","go","ma","mt","ms","mg","pa",
+        "pb","pr","pe","pi","rj","rn","rs","ro","rr","sc","sp","se","to"
+    )
+    for scope in scopes:
+        for office in offices:
+            assert parse_state_inline_query(f"estado {scope} {office} 3") == (scope, office, 3)
+            assert parse_state_inline_query(f"{scope} {office}") == (scope, office, 0)
+
+
+def test_state_inline_parser_rejects_invalid_context():
+    assert parse_state_inline_query("estado xx federal 0") is None
+    assert parse_state_inline_query("estado ms presidente 0") is None
+    assert parse_state_inline_query("estado ms senador -1") is None
