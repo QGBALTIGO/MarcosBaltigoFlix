@@ -240,7 +240,6 @@ function pollDelta(c){const h=(c.history||[]).slice().sort((a,b)=>a.date.localeC
 function renderStates(filter=''){
   const f=norm(filter),forbidBrazil=(state.pendingOffice&&isStateOffice(state.pendingOffice))||(state.pendingPollOffice&&isStateOffice(state.pendingPollOffice))||(!state.pendingOffice&&!state.pendingPollOffice&&isStateOffice(state.office));
   $('#stateList').innerHTML=Object.entries(states).filter(([k])=>!(forbidBrazil&&k==='br')).filter(([,v])=>!f||norm(v).includes(f)).map(([k,v])=>`<div class="state-item ${k===state.scope?'selected':''}" data-state="${k}">${flagBadgeHtml(k)}<span class="state-name">${v}</span>${k===state.scope?'<span class="saved-mark">Selecionado</span>':''}<span class="chev">›</span></div>`).join('');
-  $('[data-state]').forEach(el=>el.onclick=()=>selectState(el.dataset.state,'manual'));
 }
 function selectState(scope,source='manual'){
   if(!states[scope])return;state.scope=scope;persistScope(scope,source);updateLocationUI();updateGeoStatus();
@@ -265,7 +264,7 @@ function openFull(id){$(id).classList.add('show');document.body.style.overflow='
 function closeFull(el){el.closest('.fullscreen').classList.remove('show');document.body.style.overflow=''}
 
 $('#locationTrigger').onclick=()=>{const title=$('#locationSheet .sheet-head h2');if(title)title.textContent='Selecionar local';updateGeoStatus();renderStates();openSheet('#locationSheet')};
-$('#overlay').onclick=closeSheets;$$('[data-close]').forEach(x=>x.onclick=closeSheets);$('#stateSearch').oninput=e=>renderStates(e.target.value);$('#geoBtn').onclick=detectLocation;$('#analysisBtn').onclick=openAnalysis;$$('[data-full-close]').forEach(x=>x.onclick=()=>closeFull(x));
+$('#overlay').onclick=closeSheets;$('[data-close]').forEach(x=>x.onclick=closeSheets);$('#stateList').addEventListener('click',e=>{const item=e.target.closest('[data-state]');if(!item)return;e.preventDefault();selectState(item.dataset.state,'manual')});$('#stateSearch').oninput=e=>renderStates(e.target.value);$('#geoBtn').onclick=detectLocation;$('#analysisBtn').onclick=openAnalysis;$$('[data-full-close]').forEach(x=>x.onclick=()=>closeFull(x));
 $('#detailHeart').onclick=()=>{if(!state.selectedCandidate)return;const on=saveFavorite(state.selectedCandidate);$('#detailHeart').classList.toggle('active',on);$('#detailHeart').textContent=on?'♥':'♡'};
 $$('.nav-btn').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 $$('.chip').forEach(b=>b.onclick=()=>{const office=b.dataset.office;if(requireStateForOffice(office,'results'))return;setActiveOffice(office);showView('results');loadResults()});
