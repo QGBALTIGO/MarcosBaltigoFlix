@@ -139,6 +139,20 @@ def state_office_label(scope: str, office: str) -> str:
     return STATE_OFFICE_LABELS.get(office, office.title())
 
 
+def parse_state_inline_query(query: str) -> tuple[str, str, int] | None:
+    normalized = " ".join((query or "").strip().lower().split())
+    match = re.fullmatch(
+        r"(?:estado\s+)?([a-z]{2})\s+(federal|estadual|senador|governador)(?:\s+(\d+))?",
+        normalized,
+    )
+    if not match:
+        return None
+    scope, office, raw_page = match.groups()
+    if scope not in VALID_UFS:
+        return None
+    return scope, office, int(raw_page or 0)
+
+
 def state_office_keyboard(scope: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
@@ -464,16 +478,9 @@ class ElectionBot:
             return
         query = " ".join((inline.query or "").strip().lower().split())
 
-        state_match = re.fullmatch(
-            r"(?:estado\s+)?([a-z]{2})\s+(federal|estadual|senador|governador)(?:\s+(\d+))?",
-            query,
-        )
-        if state_match:
-            scope, office, raw_page = state_match.groups()
-            if scope not in VALID_UFS:
-                await inline.answer([], cache_time=1)
-                return
-            page = int(raw_page or 0)
+        state_request = parse_state_inline_query(query)
+        if state_request:
+            scope, office, page = state_request
             try:
                 result, _ = await self.results.fetch(scope, office=office, force=True)
                 pages = self._state_page_count(result)
