@@ -73,7 +73,8 @@ function applyDirectory(directory,fromCache=false){
 }
 function matchPollChoice(candidate,choices){
   const names=[norm(candidate.ballot_name),norm(candidate.name)].filter(Boolean);
-  return choices.find(x=>names.includes(norm(x.name)))||choices.find(x=>{const p=norm(x.name);return p&&names.some(n=>p.length>=5&&n.length>=5&&(p.includes(n)||n.includes(p)))});
+  const optionNames=x=>[norm(x.name),norm(x.ballot_name)].filter(Boolean);
+  return choices.find(x=>optionNames(x).some(v=>names.includes(v)))||choices.find(x=>optionNames(x).some(p=>p&&names.some(n=>p.length>=5&&n.length>=5&&(p.includes(n)||n.includes(p)))));
 }
 function mergePollIntoDirectory(poll){
   if(!state.directory)return;
