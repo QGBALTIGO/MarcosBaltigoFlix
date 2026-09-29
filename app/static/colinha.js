@@ -160,7 +160,7 @@
       '<div class="colinha-number-row">'+
         '<div class="colinha-digit-input">'+
           '<div class="colinha-boxes" data-colinha-boxes="'+slot.key+'">'+boxesHtml(slot,value)+'</div>'+
-          '<input class="colinha-number-input" data-colinha-input="'+slot.key+'" value="'+esc(value)+'" maxlength="'+slot.digits+'" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Número para '+esc(slotLabel(slot))+'">'+
+          '<input class="colinha-number-input" data-colinha-input="'+slot.key+'" value="'+esc(value)+'" data-max-digits="'+slot.digits+'" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Número para '+esc(slotLabel(slot))+'">'+
         '</div>'+
         '<div class="colinha-match" data-colinha-match="'+slot.key+'"></div>'+
       '</div>'+
