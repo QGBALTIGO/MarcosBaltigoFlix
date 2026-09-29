@@ -263,17 +263,22 @@ def build_president_result_rich_html(
         update_text = timestamp or "Atualização oficial disponível"
 
     if shared:
+        # Telegram renders callback and URL buttons with different native fills in
+        # shared Rich Messages. Keep them on separate rows so the callback's
+        # neutral fill looks intentional instead of like a broken primary button.
         buttons = (
             '<tg-button-row align="center">'
-            '<tg-button type="callback_data" style="primary" data="president:refresh:br">'
-            "🔄 Atualizar</tg-button>"
+            '<tg-button type="callback_data" data="president:refresh:br">'
+            "🔄 Atualizar resultado</tg-button>"
+            "</tg-button-row>"
         )
         if panel_url:
             buttons += (
-                f'<tg-button type="url" url="{html.escape(panel_url, quote=True)}">'
+                '<tg-button-row align="center">'
+                f'<tg-button type="url" style="primary" url="{html.escape(panel_url, quote=True)}">'
                 "📊 Painel ao vivo</tg-button>"
+                "</tg-button-row>"
             )
-        buttons += "</tg-button-row>"
     else:
         buttons = (
             '<tg-button-row align="center">'
