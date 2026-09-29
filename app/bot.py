@@ -776,8 +776,8 @@ class ElectionBot:
                 await self._send_president_rich(query.message, edit=True)
             return
         if data == "president:refresh:br":
-            if not await self._guard_required_channel(update, context):
-                return
+            # Shared inline messages must stay refreshable inside groups/private chats,
+            # even when the person pressing the button has never opened the bot.
             try:
                 result, _ = await self.results.fetch("br", force=True)
                 if query.inline_message_id:
@@ -799,10 +799,6 @@ class ElectionBot:
                     )
             except RichMessageError as exc:
                 log.warning("Não foi possível atualizar Rich Message presidencial: %s", exc)
-                try:
-                    await query.answer("Não consegui atualizar agora. Tente novamente.", show_alert=True)
-                except TelegramError:
-                    pass
             return
         if data == "start:states":
             if query.message:
