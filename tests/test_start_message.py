@@ -1,4 +1,4 @@
-from app.bot import start_keyboard, start_message_text, states_keyboard
+from app.bot import president_fallback_keyboard, start_keyboard, start_message_text, states_keyboard
 from app.config import Settings
 
 
@@ -55,7 +55,7 @@ def test_start_keyboard_private_has_webapp_then_two_buttons():
     assert [button.text for button in keyboard[0]] == ["📲 Abrir painel completo"]
     assert keyboard[0][0].web_app is not None
     assert [button.text for button in keyboard[1]] == ["🗳️ Presidente", "🗺️ Estados"]
-    assert keyboard[1][0].callback_data == "result:br"
+    assert keyboard[1][0].callback_data == "president:open:br"
     assert keyboard[1][1].callback_data == "start:states"
 
 
@@ -76,3 +76,17 @@ def test_states_keyboard_has_all_27_ufs_and_back_button():
     assert all(button.callback_data.startswith("result:") for button in uf_buttons)
     assert keyboard[-1][0].text == "⬅️ Voltar"
     assert keyboard[-1][0].callback_data == "start:home"
+
+
+
+def test_president_fallback_keyboard_has_only_four_requested_actions():
+    keyboard = president_fallback_keyboard(settings(), external_chat=False).inline_keyboard
+
+    assert [[button.text for button in row] for row in keyboard] == [
+        ["🔄 Atualizar", "📊 Painel ao vivo"],
+        ["⬅️ Voltar", "📤 Compartilhar"],
+    ]
+    assert keyboard[0][0].callback_data == "president:refresh:br"
+    assert keyboard[0][1].web_app is not None
+    assert keyboard[1][0].callback_data == "start:home"
+    assert keyboard[1][1].switch_inline_query == "presidente br"
