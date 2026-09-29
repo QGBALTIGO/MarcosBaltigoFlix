@@ -7,6 +7,8 @@ const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLo
 const palette=['#3d7df6','#65c66b','#f59c32','#ef5045','#9a58dc','#61b7e7','#e593ae','#d7b859'];
 const states={br:'Brasil',ac:'Acre',al:'Alagoas',ap:'Amapá',am:'Amazonas',ba:'Bahia',ce:'Ceará',df:'Distrito Federal',es:'Espírito Santo',go:'Goiás',ma:'Maranhão',mt:'Mato Grosso',ms:'Mato Grosso do Sul',mg:'Minas Gerais',pa:'Pará',pb:'Paraíba',pr:'Paraná',pe:'Pernambuco',pi:'Piauí',rj:'Rio de Janeiro',rn:'Rio Grande do Norte',rs:'Rio Grande do Sul',ro:'Rondônia',rr:'Roraima',sc:'Santa Catarina',sp:'São Paulo',se:'Sergipe',to:'Tocantins'};
 const officeLabels={presidente:'Presidente',governador:'Governador',senador:'Senador',federal:'Deputado Federal',estadual:'Deputado Estadual/Distrital'};
+const stateFlagSlugs={ac:'acre',al:'alagoas',ap:'amapa',am:'amazonas',ba:'bahia',ce:'ceara',df:'distrito-federal',es:'espirito-santo',go:'goias',ma:'maranhao',mt:'mato-grosso',ms:'mato-grosso-do-sul',mg:'minas-gerais',pa:'para',pb:'paraiba',pr:'parana',pe:'pernambuco',pi:'piaui',rj:'rio-de-janeiro',rn:'rio-grande-do-norte',rs:'rio-grande-do-sul',ro:'rondonia',rr:'roraima',sc:'santa-catarina',sp:'sao-paulo',se:'sergipe',to:'tocantins'};
+const STATE_FLAG_BASE='https://raw.githubusercontent.com/iconolatry/brazilian-states-flags/da53c2f1fe28ed67d2049b624f21536c337fd118/svg';
 const POLL_OFFICES=new Set(['presidente','governador','senador']);
 const CACHE_PREFIX='resultado_eleicoes_2026:';
 const DIRECTORY_TTL=30*60*1000;
@@ -14,6 +16,7 @@ const POLL_TTL=10*60*1000;
 
 let savedScope=localStorage.getItem('election_scope')||'br';
 if(!states[savedScope])savedScope='br';
+let savedScopeSource=localStorage.getItem('election_scope_source')||'';
 let state={
   scope:savedScope,office:'presidente',result:null,poll:null,selectedCandidate:null,catalog:null,
   directory:null,directoryContext:null,candidateLimit:24,candidateQuery:'',pendingOffice:null,pendingPollOffice:null,
@@ -23,6 +26,14 @@ let state={
 try{if(window.Telegram?.WebApp){Telegram.WebApp.ready();Telegram.WebApp.expand();Telegram.WebApp.setHeaderColor('#080c12');Telegram.WebApp.setBackgroundColor('#080c12')}}catch(e){}
 
 function isStateOffice(office){return office!=='presidente'}
+function stateFlagUrl(scope){if(scope==='br')return'https://flagcdn.com/br.svg';const slug=stateFlagSlugs[scope];return slug?`${STATE_FLAG_BASE}/${slug}.svg`:''}
+function flagBadgeHtml(scope,cls='state-flag'){const url=stateFlagUrl(scope);return url?`<span class="${cls}"><img src="${esc(url)}" alt="" loading="lazy" decoding="async"></span>`:`<span class="${cls}"></span>`}
+function cloudGet(key){return new Promise(resolve=>{try{const cloud=window.Telegram?.WebApp?.CloudStorage;if(!cloud?.getItem)return resolve('');cloud.getItem(key,(err,value)=>resolve(err?'':String(value||'')))}catch(e){resolve('')}})}
+function cloudSet(key,value){try{const cloud=window.Telegram?.WebApp?.CloudStorage;if(cloud?.setItem)cloud.setItem(key,String(value||''),()=>{})}catch(e){}}
+function persistScope(scope,source='manual'){localStorage.setItem('election_scope',scope);localStorage.setItem('election_scope_source',source);savedScopeSource=source;cloudSet('election_scope',scope);cloudSet('election_scope_source',source)}
+function updateLocationUI(){const name=states[state.scope]||state.scope.toUpperCase();$('#locationName').textContent=name;const target=$('#locationFlag');if(target)target.innerHTML=`<img src="${esc(stateFlagUrl(state.scope))}" alt="" decoding="async">`}
+function updateGeoStatus(message=''){const btn=$('#geoBtn'),title=$('#geoTitle'),small=$('#geoStatus');if(!btn||!title||!small)return;btn.classList.remove('detecting','saved');if(message){small.textContent=message;return}const source=localStorage.getItem('election_scope_source')||savedScopeSource;if(state.scope!=='br'&&(source==='detected'||source==='manual')){btn.classList.add('saved');title.textContent=source==='detected'?'Localização salva':'Estado salvo';small.textContent=`${states[state.scope]} · toque para alterar`;return}title.textContent='Usar minha localização';small.textContent='Detectar estado automaticamente'}
+async function restoreCloudLocation(){if(localStorage.getItem('election_scope'))return;const cloudScope=await cloudGet('election_scope');if(!states[cloudScope]||cloudScope==='br')return;const source=await cloudGet('election_scope_source');state.scope=cloudScope;savedScopeSource=source||'manual';localStorage.setItem('election_scope',cloudScope);localStorage.setItem('election_scope_source',savedScopeSource);updateLocationUI();updateGeoStatus();if(!$('#resultsView').hidden)loadResults()}
 function cacheRead(key,ttl){try{const raw=localStorage.getItem(CACHE_PREFIX+key);if(!raw)return null;const item=JSON.parse(raw);if(Date.now()-item.at>ttl){localStorage.removeItem(CACHE_PREFIX+key);return null}return item.data}catch(e){return null}}
 function cacheWrite(key,data){try{localStorage.setItem(CACHE_PREFIX+key,JSON.stringify({at:Date.now(),data}));const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(CACHE_PREFIX+'dir:')){try{keys.push([k,JSON.parse(localStorage.getItem(k)).at||0])}catch(e){}}}keys.sort((a,b)=>b[1]-a[1]);keys.slice(6).forEach(([k])=>localStorage.removeItem(k))}catch(e){}}
 function directoryKey(office=state.office,scope=state.scope){return `dir:${office}:${office==='presidente'?'br':scope}:v5`}
@@ -224,26 +235,32 @@ function pollDelta(c){const h=(c.history||[]).slice().sort((a,b)=>a.date.localeC
 
 function renderStates(filter=''){
   const f=norm(filter),forbidBrazil=(state.pendingOffice&&isStateOffice(state.pendingOffice))||(state.pendingPollOffice&&isStateOffice(state.pendingPollOffice))||(!state.pendingOffice&&!state.pendingPollOffice&&isStateOffice(state.office));
-  $('#stateList').innerHTML=Object.entries(states).filter(([k])=>!(forbidBrazil&&k==='br')).filter(([,v])=>!f||norm(v).includes(f)).map(([k,v])=>`<div class="state-item" data-state="${k}"><span class="uf-badge">${k==='br'?'BR':k.toUpperCase()}</span><span>${v}</span><span class="chev">›</span></div>`).join('');
-  $$('[data-state]').forEach(el=>el.onclick=()=>selectState(el.dataset.state));
+  $('#stateList').innerHTML=Object.entries(states).filter(([k])=>!(forbidBrazil&&k==='br')).filter(([,v])=>!f||norm(v).includes(f)).map(([k,v])=>`<div class="state-item ${k===state.scope?'selected':''}" data-state="${k}">${flagBadgeHtml(k)}<span class="state-name">${v}</span>${k===state.scope?'<span class="saved-mark">Selecionado</span>':''}<span class="chev">›</span></div>`).join('');
+  $('[data-state]').forEach(el=>el.onclick=()=>selectState(el.dataset.state,'manual'));
 }
-function selectState(scope){
-  if(!states[scope])return;state.scope=scope;localStorage.setItem('election_scope',scope);$('#locationName').textContent=states[scope];
+function selectState(scope,source='manual'){
+  if(!states[scope])return;state.scope=scope;persistScope(scope,source);updateLocationUI();updateGeoStatus();
   const pendingOffice=state.pendingOffice,pendingPoll=state.pendingPollOffice;state.pendingOffice=null;state.pendingPollOffice=null;closeSheets();
   if(pendingOffice){setActiveOffice(pendingOffice);showView('results');loadResults();return}
   if(pendingPoll){$('#pollOffice').value=pendingPoll;showView('polls');loadPoll(true);return}
   if(!$('#resultsView').hidden){loadResults()}else if(!$('#pollsView').hidden){loadPoll(true)}
 }
 async function detectLocation(){
-  const btn=$('#geoBtn');if(!navigator.geolocation){btn.querySelector('small').textContent='Localização não disponível';return}btn.querySelector('small').textContent='Detectando…';
-  navigator.geolocation.getCurrentPosition(async p=>{try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.coords.latitude}&lon=${p.coords.longitude}`,{headers:{'Accept-Language':'pt-BR'}}),d=await r.json(),code=String(d.address?.['ISO3166-2-lvl4']||d.address?.['ISO3166-2-lvl3']||'').split('-').pop().toLowerCase();if(states[code]){selectState(code);return}btn.querySelector('small').textContent='Estado não identificado'}catch(e){btn.querySelector('small').textContent='Não foi possível identificar o estado'}},()=>btn.querySelector('small').textContent='Permissão de localização não concedida',{enableHighAccuracy:false,timeout:7000});
+  const btn=$('#geoBtn'),title=$('#geoTitle'),small=$('#geoStatus');
+  if(!navigator.geolocation){updateGeoStatus('Localização não disponível neste navegador');return}
+  btn.classList.remove('saved');btn.classList.add('detecting');title.textContent='Usar minha localização';small.textContent='Detectando…';
+  navigator.geolocation.getCurrentPosition(async p=>{try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.coords.latitude}&lon=${p.coords.longitude}`,{headers:{'Accept-Language':'pt-BR'}}),d=await r.json(),code=String(d.address?.['ISO3166-2-lvl4']||d.address?.['ISO3166-2-lvl3']||'').split('-').pop().toLowerCase();
+    if(states[code]){btn.classList.remove('detecting');btn.classList.add('saved');title.textContent='Localização salva';small.textContent=states[code];selectState(code,'detected');return}
+    updateGeoStatus('Estado não identificado');
+  }catch(e){updateGeoStatus('Não foi possível identificar o estado')}},()=>updateGeoStatus('Permissão de localização não concedida'),{enableHighAccuracy:false,timeout:7000,maximumAge:3600000});
 }
 function openSheet(id){$('#overlay').classList.add('show');$(id).classList.add('show');document.body.style.overflow='hidden'}
 function closeSheets(){$('#overlay').classList.remove('show');$$('.sheet.show').forEach(x=>x.classList.remove('show'));document.body.style.overflow='';state.pendingOffice=null;state.pendingPollOffice=null;const title=$('#locationSheet .sheet-head h2');if(title)title.textContent='Selecionar local'}
 function openFull(id){$(id).classList.add('show');document.body.style.overflow='hidden'}
 function closeFull(el){el.closest('.fullscreen').classList.remove('show');document.body.style.overflow=''}
 
-$('#locationTrigger').onclick=()=>{const title=$('#locationSheet .sheet-head h2');if(title)title.textContent='Selecionar local';renderStates();openSheet('#locationSheet')};
+$('#locationTrigger').onclick=()=>{const title=$('#locationSheet .sheet-head h2');if(title)title.textContent='Selecionar local';updateGeoStatus();renderStates();openSheet('#locationSheet')};
 $('#overlay').onclick=closeSheets;$$('[data-close]').forEach(x=>x.onclick=closeSheets);$('#stateSearch').oninput=e=>renderStates(e.target.value);$('#geoBtn').onclick=detectLocation;$('#analysisBtn').onclick=openAnalysis;$$('[data-full-close]').forEach(x=>x.onclick=()=>closeFull(x));
 $('#detailHeart').onclick=()=>{if(!state.selectedCandidate)return;const on=saveFavorite(state.selectedCandidate);$('#detailHeart').classList.toggle('active',on);$('#detailHeart').textContent=on?'♥':'♡'};
 $$('.nav-btn').forEach(b=>b.onclick=()=>showView(b.dataset.view));
@@ -253,5 +270,5 @@ $('#candidateSearch').oninput=e=>{state.candidateQuery=e.target.value;state.cand
 $('#pollOffice').onchange=e=>{const office=e.target.value;if(requireStateForOffice(office,'polls')){e.target.value='presidente';return}$('#pollQuestion').value='';$('#pollStratum').value='';loadPoll(true)};
 $('#pollInstitute').onchange=()=>loadPoll(true);$('#pollQuestion').onchange=()=>loadPoll(false);$('#pollStratum').onchange=renderPoll;
 
-$('#locationName').textContent=states[state.scope]||'Brasil';setActiveOffice('presidente');loadCatalog().then(syncInstitutes);loadResults();
+updateLocationUI();updateGeoStatus();setActiveOffice('presidente');loadCatalog().then(syncInstitutes);loadResults();restoreCloudLocation();
 setInterval(()=>{if(!document.hidden&&!$('#resultsView').hidden&&state.office==='presidente')loadOfficialResultInBackground(state.requestSeq)},30000);
