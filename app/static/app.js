@@ -39,9 +39,13 @@ function syncTelegramViewport(){
   const contentTop=Number(content.top)||0,contentRight=Number(content.right)||0,contentBottom=Number(content.bottom)||0,contentLeft=Number(content.left)||0;
   const fullscreen=!!tg.isFullscreen;
   const ios=isTelegramIOS();
-  const fallbackTop=fullscreen?(ios?96:76):0;
+  // Telegram fullscreen already exposes a content-safe top inset. When it does
+  // not (notably some iOS versions), keep one conservative fallback. Do not
+  // stack a second "controls guard" on top of the same area: that was pushing
+  // every screen far down the viewport.
+  const fallbackTop=fullscreen?(ios?90:68):0;
   const reportedTop=Math.max(systemTop,contentTop,fallbackTop);
-  const controlsGuard=fullscreen?(ios?72:54):0;
+  const controlsGuard=0;
   const topClearance=reportedTop;
   const rightClearance=Math.max(systemRight,contentRight);
   const bottomClearance=Math.max(systemBottom,contentBottom);
