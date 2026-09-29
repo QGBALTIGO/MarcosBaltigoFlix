@@ -187,6 +187,29 @@ def _result_pct(value: float) -> str:
     return f"{value:.2f}".replace(".", ",") + "%"
 
 
+def _ordered_result_candidates(result: ElectionResult) -> list[Candidate]:
+    """Alphabetical before counting; ranking by official percentage/votes once counting starts."""
+    candidates = list(result.candidates or [])
+    if is_pre_election(result):
+        return sorted(
+            candidates,
+            key=lambda item: (
+                (item.ballot_name or item.name or "").casefold(),
+                item.number if item.number is not None else 999999,
+                item.sequence if item.sequence is not None else 999999,
+            ),
+        )
+    return sorted(
+        candidates,
+        key=lambda item: (
+            -float(item.percentage or 0),
+            -int(item.votes or 0),
+            (item.ballot_name or item.name or "").casefold(),
+            item.number if item.number is not None else 999999,
+        ),
+    )
+
+
 def build_president_result_rich_html(
     result: ElectionResult,
     *,
@@ -205,7 +228,7 @@ def build_president_result_rich_html(
         '<th align="right">%</th>'
         "</tr>"
     ]
-    for candidate in result.candidates:
+    for candidate in _ordered_result_candidates(result):
         identity = []
         if candidate.number is not None:
             identity.append(str(candidate.number))
@@ -340,11 +363,12 @@ def _state_result_page(
     page_size: int = STATE_RESULT_PAGE_SIZE,
 ) -> tuple[list[Candidate], int, int]:
     page_size = max(1, int(page_size))
-    total = len(result.candidates)
+    ordered = _ordered_result_candidates(result)
+    total = len(ordered)
     pages = max(1, (total + page_size - 1) // page_size)
     page = min(max(0, int(page)), pages - 1)
     start = page * page_size
-    return result.candidates[start:start + page_size], page, pages
+    return ordered[start:start + page_size], page, pages
 
 
 def build_state_inline_menu_rich_html(scope: str) -> str:
