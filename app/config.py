@@ -85,7 +85,7 @@ class Settings:
 
 
 def get_settings() -> Settings:
-    mode = os.getenv("ELECTION_MODE", "simulation").strip().lower()
+    mode = os.getenv("ELECTION_MODE", "official").strip().lower()
     if mode not in {"simulation", "official"}:
         raise RuntimeError("ELECTION_MODE deve ser 'simulation' ou 'official'.")
 

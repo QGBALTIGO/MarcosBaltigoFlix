@@ -233,7 +233,74 @@ def install_routes(context: BrowserContext, fail_office: str | None = None) -> N
             route.fulfill(status=200, content_type="application/json", body='{"uf":"MS"}')
             return
 
-        if path in {"/api/result", "/api/g1/poll"}:
+        if path == "/api/result":
+            office = query.get("office", ["presidente"])[0]
+            scope = query.get("scope", ["br"])[0]
+            rows = candidate_payload(office, scope)["candidates"]
+            payload = {
+                "scope": scope,
+                "election_code": 6257 if office == "presidente" else 6259,
+                "round": 1,
+                "phase": "pre_election",
+                "generated_date": "",
+                "generated_time": "",
+                "totalization_date": "",
+                "totalization_time": "",
+                "generation_id": f"pre-election:{office}:{scope}",
+                "disclosure_enabled": False,
+                "final_totalization": False,
+                "progress_status": "Aguardando início da apuração oficial",
+                "mathematically_defined": "",
+                "no_elected_assignment": False,
+                "no_elected_reasons": [],
+                "sections_total": 0,
+                "sections_counted": 0,
+                "sections_pending": 0,
+                "sections_counted_pct": 0.0,
+                "electorate_total": 0,
+                "turnout": 0,
+                "turnout_pct": 0.0,
+                "abstention": 0,
+                "abstention_pct": 0.0,
+                "total_votes": 0,
+                "valid_votes": 0,
+                "blank_votes": 0,
+                "null_votes": 0,
+                "void_votes": 0,
+                "void_sub_judice_votes": 0,
+                "pre_election": True,
+                "simulation": False,
+                "source_label": "Tribunal Superior Eleitoral (TSE)",
+                "source_url": "https://resultados.tse.jus.br/",
+                "candidates": [
+                    {
+                        "number": int(item["number"]),
+                        "sequence": index,
+                        "candidate_id": item["id"],
+                        "name": item["name"],
+                        "ballot_name": item["ballot_name"],
+                        "party": item["party"],
+                        "party_name": item["party_name"],
+                        "votes": 0,
+                        "percentage": 0.0,
+                        "percentage_exact": 0.0,
+                        "vote_destination": "",
+                        "official_status": "",
+                        "elected_flag": False,
+                        "vice_name": "",
+                        "vice_party": "",
+                    }
+                    for index, item in enumerate(rows, start=1)
+                ],
+            }
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(payload),
+            )
+            return
+
+        if path == "/api/g1/poll":
             route.fulfill(
                 status=502,
                 content_type="application/json",
@@ -728,6 +795,27 @@ def test_urna_fits_mobile_viewport(browser: Browser, base_url: str) -> None:
 
 
 
+def test_results_use_real_candidates_at_zero_before_apuration(browser: Browser, base_url: str) -> None:
+    context = new_context(browser, viewport={"width": 390, "height": 844}, telegram_mock=True)
+    try:
+        page, errors = page_with_errors(context, base_url)
+        page.wait_for_function("document.body.classList.contains('tg-fullscreen')", timeout=5_000)
+        page.wait_for_selector('[data-real-candidate]', timeout=8_000)
+        page.wait_for_timeout(180)
+
+        expect(page.locator("#summaryModeTitle")).to_have_text("APURAÇÃO")
+        expect(page.locator("#totalVotes")).to_have_text("0 votos")
+        expect(page.locator("#validShare")).to_have_text("0%")
+        expect(page.locator("#candidateArea")).to_contain_text("GABI PRESIDÊNCIA")
+        expect(page.locator("#candidateArea")).to_contain_text("0%")
+        expect(page.locator("#candidateArea")).to_contain_text("Aguardando apuração oficial")
+
+        assert page.locator("#candidateArea").get_by_text("Intenção de voto · não é apuração").count() == 0
+        assert not errors, errors
+    finally:
+        context.close()
+
+
 def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str) -> None:
     context = new_context(
         browser,
@@ -1104,6 +1192,7 @@ def run_suite(playwright: Playwright, base_url: str) -> None:
         ("responsive_matrix", test_responsive_matrix),
         ("telegram_fullscreen_and_keyboard_guard", test_telegram_fullscreen_and_keyboard_guard),
         ("urna_fits_mobile_viewport", test_urna_fits_mobile_viewport),
+        ("results_use_real_candidates_at_zero_before_apuration", test_results_use_real_candidates_at_zero_before_apuration),
         ("fullscreen_all_views_and_modals_spacing", test_fullscreen_all_views_and_modals_spacing),
         ("results_scroll_clearance", test_results_scroll_clearance),
         ("input_sanitization_and_limits", test_input_sanitization_and_limits),

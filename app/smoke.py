@@ -10,6 +10,7 @@ from time import perf_counter
 from .candidates import CandidateDirectory
 from .config import get_settings
 from .g1_polls import G1PollClient
+from .result_service import ResultService, is_pre_election
 from .tse import TSEClient, VALID_UFS
 
 OFFICES = ("governador", "senador", "federal", "estadual")
@@ -37,6 +38,7 @@ async def run(full: bool) -> int:
     g1 = G1PollClient(cache_seconds=3600, discovery_seconds=3600)
     candidates = CandidateDirectory(g1, cache_seconds=3600)
     tse = TSEClient(settings)
+    results = ResultService(settings, tse, candidates)
     started = perf_counter()
 
     try:
@@ -131,10 +133,13 @@ async def run(full: bool) -> int:
         smoke.ok("function requireStateForOffice" in js, "state requirement helper missing")
         smoke.ok("setActiveOffice('presidente')" in js, "Brazil does not initialize on president")
         smoke.ok("function showView(name)" in js, "view navigation missing")
-        smoke.ok("function renderPollSummary(poll)" in js, "poll summary renderer missing")
+        smoke.ok("function renderPollSummary(poll)" in js, "poll renderer missing for the separate research flow")
         smoke.ok("function renderOfficialSummary(d)" in js, "official summary renderer missing")
+        smoke.ok("function renderZeroSummary()" in js, "zero pre-election summary missing")
         smoke.ok("function renderSummaryFromState()" in js, "summary mode switch missing")
-        smoke.ok("percentuais exibidos como 0%" in js, "zero fallback for missing polls missing")
+        smoke.ok("Aguardando apuração oficial" in js, "candidate zero-baseline label missing")
+        smoke.ok("loadEstimateInBackground(seq);" not in js, "results view still injects polling percentages")
+        smoke.ok("candidate.result_percentage" in js, "candidate cards are not wired to official result percentages")
         smoke.ok("office=${encodeURIComponent(office)}" in js, "official result request is not office-aware")
         smoke.ok("function selectState(scope,source='manual')" in js, "state selection function missing")
         smoke.ok("persistScope(scope,source)" in js, "state selection does not persist")
@@ -287,16 +292,24 @@ async def run(full: bool) -> int:
         df_state_url = tse.result_url("df", office="estadual")
         smoke.ok("c0008" in df_state_url, "TSE distrital: wrong cargo code")
 
-        # 5) TSE presidential result for Brazil + every UF, repeated from cache.
+        # 5) Official result service for Brazil + every UF.
+        # Before TSE publishes the official result files, the service must expose only
+        # real registered candidacies with zero votes/percentages — never simulation data.
         result_scopes = ["br", *ufs]
         tse_results = {}
         for scope in result_scopes:
             try:
-                result, _ = await asyncio.wait_for(tse.fetch(scope), timeout=15)
+                result, _ = await asyncio.wait_for(results.fetch(scope), timeout=20)
                 tse_results[scope] = result
                 smoke.ok(result.sections_total >= 0, f"TSE {scope}: invalid section total")
                 smoke.ok(result.electorate_total >= 0, f"TSE {scope}: invalid electorate")
                 smoke.ok(isinstance(result.candidates, list), f"TSE {scope}: candidates is not a list")
+                if not settings.is_simulation and is_pre_election(result):
+                    smoke.ok(len(result.candidates) > 0, f"TSE {scope}: pre-election baseline has no real candidacies")
+                    smoke.ok(all(c.votes == 0 for c in result.candidates), f"TSE {scope}: pre-election candidate has non-zero votes")
+                    smoke.ok(all(c.percentage == 0 for c in result.candidates), f"TSE {scope}: pre-election candidate has non-zero percentage")
+                    smoke.ok(all(bool(c.ballot_name) for c in result.candidates), f"TSE {scope}: pre-election candidate missing ballot name")
+                    smoke.ok(all(c.number is not None for c in result.candidates), f"TSE {scope}: pre-election candidate missing official number")
             except Exception as exc:
                 smoke.failures.append(f"TSE {scope}: {type(exc).__name__}: {exc}")
 

@@ -42,10 +42,10 @@ def test_start_message_has_requested_structure_and_formatting():
     assert "👇 <b>Escolha uma opção abaixo para começar.</b>" in text
 
 
-def test_start_message_keeps_simulation_disclosure_when_needed():
+def test_start_message_never_shows_simulation_disclosure():
     text = start_message_text(settings(simulation=True))
-    assert "⚠️ <b>Modo de simulação:</b>" in text
-    assert "não representam votos reais" in text
+    assert "Modo de simulação" not in text
+    assert "não representam votos reais" not in text
 
 
 def test_start_keyboard_private_has_webapp_then_two_buttons():

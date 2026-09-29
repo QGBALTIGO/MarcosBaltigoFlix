@@ -4,6 +4,7 @@ import html
 
 from .config import Settings
 from .models import ElectionResult
+from .result_service import is_pre_election
 
 UF_NAMES = {
     "br": "Brasil", "ac": "Acre", "al": "Alagoas", "ap": "Amapá", "am": "Amazonas",
@@ -42,16 +43,24 @@ def _official_definition(result: ElectionResult) -> str:
 
 def format_result(result: ElectionResult, settings: Settings, max_candidates: int = 20) -> str:
     place = UF_NAMES.get(result.scope, result.scope.upper())
-    sim = "\n⚠️ <b>DADOS DE SIMULAÇÃO DO TSE — NÃO SÃO VOTOS REAIS</b>" if settings.is_simulation else ""
+    pre_election = is_pre_election(result)
     lines = [
         f"<b>ELEIÇÕES 2026 • PRESIDENTE</b>",
-        f"<b>{html.escape(place)}</b> • {result.round}º turno{sim}",
+        f"<b>{html.escape(place)}</b> • {result.round}º turno",
         "",
+    ]
+    if pre_election:
+        lines.extend([
+            "🕒 <b>Apuração ainda não iniciada</b>",
+            "As candidaturas registradas estão prontas; votos e percentuais permanecem em zero até a publicação oficial do TSE.",
+            "",
+        ])
+    lines.extend([
         f"<b>Seções totalizadas:</b> {p(result.sections_counted_pct)}",
         f"<code>{_progress_bar(result.sections_counted_pct)}</code>",
         f"{n(result.sections_counted)} de {n(result.sections_total)} seções",
         "",
-    ]
+    ])
 
     if not result.candidates:
         lines.append("A votação dos candidatos ainda não está disponível neste arquivo.")
@@ -84,9 +93,10 @@ def format_result(result: ElectionResult, settings: Settings, max_candidates: in
         lines.append(f"\n<b>TSE:</b> sem atribuição de eleito — {html.escape(reasons)}")
 
     timestamp = " ".join(x for x in [result.totalization_date, result.totalization_time] if x)
+    update_label = "aguardando início da apuração" if pre_election else (timestamp or "aguardando")
     lines.extend([
         "",
-        f"<b>Atualização do TSE:</b> {html.escape(timestamp or 'aguardando')} ",
+        f"<b>Atualização do TSE:</b> {html.escape(update_label)}",
         f"<b>Fonte:</b> {html.escape(settings.source_label)}",
     ])
     return "\n".join(lines).strip()
