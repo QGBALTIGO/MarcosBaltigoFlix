@@ -688,6 +688,7 @@ def test_urna_fits_mobile_viewport(browser: Browser, base_url: str) -> None:
             open_colinha(page)
             page.locator("#colinhaTrain").click()
             expect(page.locator("#urnaModal")).to_be_visible()
+            page.wait_for_timeout(380)
 
             geometry = page.evaluate(
                 """
