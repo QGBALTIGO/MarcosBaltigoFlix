@@ -9,6 +9,8 @@ import httpx
 
 from .formatter import UF_NAMES
 from .g1_polls import G1Poll, G1PollChoice
+from .models import ElectionResult
+from .result_service import is_pre_election
 
 
 OFFICE_NAMES = {
@@ -173,27 +175,153 @@ def build_g1_channel_rich_html(
     ])
 
 
-async def send_rich_html(
+
+def _int_br(value: int | float) -> str:
+    return f"{int(value):,}".replace(",", ".")
+
+
+def _result_pct(value: float) -> str:
+    value = float(value or 0)
+    if abs(value - round(value)) < 0.000001:
+        return f"{int(round(value))}%"
+    return f"{value:.2f}".replace(".", ",") + "%"
+
+
+def build_president_result_rich_html(
+    result: ElectionResult,
+    *,
+    panel_url: str = "",
+    panel_web_app: bool = True,
+    shared: bool = False,
+) -> str:
+    """Build the President result in the same native-table Rich Message style used by the channel."""
+    place = UF_NAMES.get(result.scope, result.scope.upper())
+    pre_election = is_pre_election(result)
+
+    candidate_rows = [
+        "<tr>"
+        '<th align="left">Candidato</th>'
+        '<th align="right">Votos</th>'
+        '<th align="right">%</th>'
+        "</tr>"
+    ]
+    for candidate in result.candidates:
+        identity = []
+        if candidate.number is not None:
+            identity.append(str(candidate.number))
+        if candidate.party:
+            identity.append(candidate.party)
+        candidate_cell = f"<b>{html.escape(candidate.ballot_name or candidate.name)}</b>"
+        if identity:
+            candidate_cell += "<br/>" + html.escape(" · ".join(identity))
+        candidate_rows.append(
+            "<tr>"
+            f'<td align="left">{candidate_cell}</td>'
+            f'<td align="right">{_int_br(candidate.votes)}</td>'
+            f'<td align="right"><b>{_result_pct(candidate.percentage)}</b></td>'
+            "</tr>"
+        )
+
+    sections_text = _result_pct(result.sections_counted_pct)
+    if result.sections_total > 0:
+        sections_text = (
+            f"{_int_br(result.sections_counted)} / {_int_br(result.sections_total)}"
+            f" · {_result_pct(result.sections_counted_pct)}"
+        )
+
+    totals = [
+        ("Seções totalizadas", sections_text),
+        ("Votos válidos", _int_br(result.valid_votes)),
+        ("Em branco", _int_br(result.blank_votes)),
+        ("Nulos", _int_br(result.null_votes)),
+        ("Comparecimento", _int_br(result.turnout)),
+        ("Abstenção", _int_br(result.abstention)),
+    ]
+    totals_rows = "".join(
+        "<tr>"
+        f'<td align="left">{html.escape(label)}</td>'
+        f'<td align="right"><b>{html.escape(value)}</b></td>'
+        "</tr>"
+        for label, value in totals
+    )
+
+    if pre_election:
+        status = (
+            "<p>🕒 <b>Apuração ainda não iniciada.</b> "
+            "As candidaturas estão carregadas e permanecem com 0 votos e 0% "
+            "até a publicação oficial do TSE.</p>"
+        )
+        update_text = "Aguardando início da apuração oficial"
+    else:
+        status = (
+            f"<p>🔄 <b>{_result_pct(result.sections_counted_pct)}</b> "
+            "das seções totalizadas.</p>"
+        )
+        timestamp = " ".join(
+            part for part in (result.totalization_date, result.totalization_time) if part
+        )
+        update_text = timestamp or "Atualização oficial disponível"
+
+    if shared:
+        buttons = (
+            '<tg-button-row align="center">'
+            '<tg-button type="callback_data" style="primary" data="president:refresh:br">'
+            "🔄 Atualizar</tg-button>"
+        )
+        if panel_url:
+            buttons += (
+                f'<tg-button type="url" url="{html.escape(panel_url, quote=True)}">'
+                "📊 Painel ao vivo</tg-button>"
+            )
+        buttons += "</tg-button-row>"
+    else:
+        buttons = (
+            '<tg-button-row align="center">'
+            '<tg-button type="callback_data" style="primary" data="president:refresh:br">'
+            "🔄 Atualizar</tg-button>"
+        )
+        if panel_url:
+            button_type = "web_app" if panel_web_app else "url"
+            buttons += (
+                f'<tg-button type="{button_type}" url="{html.escape(panel_url, quote=True)}">'
+                "📊 Painel ao vivo</tg-button>"
+            )
+        buttons += "</tg-button-row>"
+        buttons += (
+            '<tg-button-row align="center">'
+            '<tg-button type="callback_data" data="start:home">⬅️ Voltar</tg-button>'
+            '<tg-button type="switch_inline_query_chosen_chat" query="presidente br" '
+            'allow-user-chats allow-group-chats>📤 Compartilhar</tg-button>'
+            "</tg-button-row>"
+        )
+
+    return "".join([
+        "<h2>🗳️ Presidente • Brasil</h2>",
+        f"<p><b>Eleições 2026 · {result.round}º turno · {html.escape(place)}</b></p>",
+        "<p>Apuração oficial do Tribunal Superior Eleitoral (TSE).</p>",
+        status,
+        "<hr/>",
+        '<table bordered striped compact><caption>Resultado presidencial</caption>',
+        "".join(candidate_rows),
+        "</table>",
+        '<table compact><caption>Totalização</caption>',
+        totals_rows,
+        "</table>",
+        f"<footer>Última atualização: {html.escape(update_text)} · Fonte: TSE.</footer>",
+        buttons,
+    ])
+
+
+async def _bot_api_post(
     *,
     token: str,
-    chat_id: str | int,
-    rich_html: str,
-    disable_notification: bool = False,
-) -> dict[str, Any]:
-    """Call Bot API sendRichMessage directly; PTB 22.x doesn't expose Bot API 10.3 Rich Messages yet."""
+    method: str,
+    payload: dict[str, Any],
+) -> Any:
     if not token:
         raise RichMessageError("Token do Telegram não configurado.")
 
-    url = f"https://api.telegram.org/bot{token}/sendRichMessage"
-    payload = {
-        "chat_id": chat_id,
-        "rich_message": {
-            "html": rich_html,
-            "skip_entity_detection": True,
-        },
-        "disable_notification": disable_notification,
-    }
-
+    url = f"https://api.telegram.org/bot{token}/{method}"
     async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
         response = await client.post(url, json=payload)
 
@@ -207,8 +335,92 @@ async def send_rich_html(
     if not response.is_success or not data.get("ok"):
         description = str(data.get("description") or f"HTTP {response.status_code}")
         raise RichMessageError(description)
+    return data.get("result")
 
-    result = data.get("result")
+
+async def edit_rich_html(
+    *,
+    token: str,
+    rich_html: str,
+    chat_id: str | int | None = None,
+    message_id: int | None = None,
+    inline_message_id: str | None = None,
+) -> Any:
+    payload: dict[str, Any] = {
+        "rich_message": {
+            "html": rich_html,
+            "skip_entity_detection": True,
+        }
+    }
+    if inline_message_id:
+        payload["inline_message_id"] = inline_message_id
+    elif chat_id is not None and message_id is not None:
+        payload["chat_id"] = chat_id
+        payload["message_id"] = message_id
+    else:
+        raise RichMessageError("É necessário informar a mensagem a editar.")
+
+    return await _bot_api_post(
+        token=token,
+        method="editMessageText",
+        payload=payload,
+    )
+
+
+async def answer_inline_rich_query(
+    *,
+    token: str,
+    inline_query_id: str,
+    rich_html: str,
+    result_id: str,
+    title: str,
+    description: str,
+) -> Any:
+    return await _bot_api_post(
+        token=token,
+        method="answerInlineQuery",
+        payload={
+            "inline_query_id": inline_query_id,
+            "results": [
+                {
+                    "type": "article",
+                    "id": result_id,
+                    "title": title,
+                    "description": description,
+                    "input_message_content": {
+                        "rich_message": {
+                            "html": rich_html,
+                            "skip_entity_detection": True,
+                        }
+                    },
+                }
+            ],
+            "cache_time": 0,
+            "is_personal": False,
+        },
+    )
+
+
+async def send_rich_html(
+    *,
+    token: str,
+    chat_id: str | int,
+    rich_html: str,
+    disable_notification: bool = False,
+) -> dict[str, Any]:
+    """Call Bot API sendRichMessage directly; PTB 22.x doesn't expose Rich Messages yet."""
+    result = await _bot_api_post(
+        token=token,
+        method="sendRichMessage",
+        payload={
+            "chat_id": chat_id,
+            "rich_message": {
+                "html": rich_html,
+                "skip_entity_detection": True,
+            },
+            "disable_notification": disable_notification,
+        },
+    )
     if not isinstance(result, dict):
         raise RichMessageError("Telegram não retornou a mensagem enviada.")
     return result
