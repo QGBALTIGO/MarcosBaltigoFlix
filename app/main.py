@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .bot import ElectionBot
@@ -40,6 +40,14 @@ g1_task: asyncio.Task | None = None
 async def lifespan(app: FastAPI):
     global monitor_task, g1_task
     await storage.init()
+    try:
+        await asyncio.wait_for(
+            candidates.list("presidente", "br", include_poll=False),
+            timeout=10,
+        )
+        logging.getLogger(__name__).info("Cache inicial de candidaturas presidenciais aquecido")
+    except Exception:
+        logging.getLogger(__name__).exception("Falha aquecendo candidaturas presidenciais")
     tg_app = await election_bot.build()
     if tg_app:
         await tg_app.initialize()
@@ -180,7 +188,11 @@ async def api_candidates(
     include_poll: bool = Query(default=False),
 ):
     try:
-        return await candidates.list(office, scope, include_poll=include_poll)
+        data = await candidates.list(office, scope, include_poll=include_poll)
+        return JSONResponse(
+            data,
+            headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=300"},
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -198,7 +210,11 @@ async def api_candidate_detail(
     candidate_id: str,
 ):
     try:
-        return await candidates.detail(office, scope, candidate_id)
+        data = await candidates.detail(office, scope, candidate_id)
+        return JSONResponse(
+            data,
+            headers={"Cache-Control": "public, max-age=300, stale-while-revalidate=900"},
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
