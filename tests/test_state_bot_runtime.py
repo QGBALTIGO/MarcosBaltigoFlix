@@ -177,3 +177,59 @@ def test_real_state_sender_fetches_expected_scope_office(monkeypatch):
         assert "CANDIDATO TESTE" in captured["rich_html"]
 
     asyncio.run(scenario())
+
+
+def test_state_open_callback_edits_inline_message(monkeypatch):
+    async def scenario():
+        bot = make_bot()
+
+        async def guard(update, context):
+            return True
+
+        captured = {}
+
+        async def fake_edit_rich_html(**kwargs):
+            captured.update(kwargs)
+            return True
+
+        bot._guard_required_channel = guard
+        monkeypatch.setattr("app.bot.edit_rich_html", fake_edit_rich_html)
+
+        query = QueryStub("state:open:sp:governador:0")
+        query.inline_message_id = "inline-123"
+        query.message = None
+        update = SimpleNamespace(callback_query=query)
+
+        await bot.callback(update, SimpleNamespace())
+
+        assert captured["inline_message_id"] == "inline-123"
+        assert "Governador" in captured["rich_html"]
+        assert "São Paulo" in captured["rich_html"]
+        assert len(query.answers) == 1
+
+    asyncio.run(scenario())
+
+
+def test_state_back_callback_restores_inline_office_menu(monkeypatch):
+    async def scenario():
+        bot = make_bot()
+        captured = {}
+
+        async def fake_edit_rich_html(**kwargs):
+            captured.update(kwargs)
+            return True
+
+        monkeypatch.setattr("app.bot.edit_rich_html", fake_edit_rich_html)
+
+        query = QueryStub("state:sp")
+        query.inline_message_id = "inline-456"
+        query.message = None
+        update = SimpleNamespace(callback_query=query)
+
+        await bot.callback(update, SimpleNamespace())
+
+        assert captured["inline_message_id"] == "inline-456"
+        assert captured["rich_html"].count('data="state:open:sp:') == 4
+        assert len(query.answers) == 1
+
+    asyncio.run(scenario())
