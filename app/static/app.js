@@ -30,6 +30,20 @@ let state={
 try{if(window.Telegram?.WebApp){Telegram.WebApp.ready();Telegram.WebApp.expand();Telegram.WebApp.setHeaderColor('#080c12');Telegram.WebApp.setBackgroundColor('#080c12')}}catch(e){}
 
 function isStateOffice(office){return office!=='presidente'}
+async function requestJson(url,{cache='no-cache',timeout=8000}={}){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeout);
+  try{
+    const response=await fetch(url,{cache,signal:controller.signal});
+    let data=null;
+    try{data=await response.json()}catch(e){}
+    if(!response.ok)throw new Error(data?.detail||`HTTP ${response.status}`);
+    return data;
+  }catch(error){
+    if(error?.name==='AbortError')throw new Error('Tempo de resposta excedido');
+    throw error;
+  }finally{clearTimeout(timer)}
+}
 function stateFlagUrl(scope){if(scope==='br')return'https://flagcdn.com/br.svg';const slug=stateFlagSlugs[scope];return slug?`${STATE_FLAG_BASE}/${slug}.svg`:''}
 function flagBadgeHtml(scope,cls='state-flag'){const url=stateFlagUrl(scope);return url?`<span class="${cls}"><img src="${esc(url)}" alt="" loading="lazy" decoding="async"></span>`:`<span class="${cls}"></span>`}
 function cloudGet(key){return new Promise(resolve=>{try{const cloud=window.Telegram?.WebApp?.CloudStorage;if(!cloud?.getItem)return resolve('');cloud.getItem(key,(err,value)=>resolve(err?'':String(value||'')))}catch(e){resolve('')}})}
@@ -112,8 +126,7 @@ async function loadEstimateInBackground(seq){
   let url=`/api/g1/poll?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&round=1`;
   if(office==='presidente'&&scope==='br')url+='&institute=datafolha';
   try{
-    const r=await fetch(url,{cache:'no-cache'}),poll=await r.json();
-    if(!r.ok)throw new Error(poll.detail||'Pesquisa indisponível');
+    const poll=await requestJson(url,{cache:'no-cache',timeout:8000});
     if(seq!==state.requestSeq||state.office!==office||state.scope!==scope)return;
     state.poll=poll;state.pollContext=context;cacheWrite(pollKey(office,scope),poll);mergePollIntoDirectory(poll);
   }catch(e){
@@ -124,9 +137,9 @@ async function loadOfficialResultInBackground(seq){
   if(state.office!=='presidente'){state.result=null;qs('#summaryCard').style.display='none';return}
   const scope=state.scope;
   try{
-    const r=await fetch(`/api/result?scope=${encodeURIComponent(scope)}`,{cache:'no-cache'}),d=await r.json();
+    const d=await requestJson(`/api/result?scope=${encodeURIComponent(scope)}`,{cache:'no-cache',timeout:7000});
     if(seq!==state.requestSeq||state.office!=='presidente'||state.scope!==scope)return;
-    if(r.ok&&!d.simulation){state.result=d;qs('#summaryCard').style.display='block';renderSummary()}else{state.result=null;qs('#summaryCard').style.display='none'}
+    if(!d.simulation){state.result=d;qs('#summaryCard').style.display='block';renderSummary()}else{state.result=null;qs('#summaryCard').style.display='none'}
   }catch(e){state.result=null;qs('#summaryCard').style.display='none'}
 }
 async function loadResults(){
@@ -143,8 +156,7 @@ async function loadResults(){
   loadOfficialResultInBackground(seq);
   loadEstimateInBackground(seq);
   try{
-    const r=await fetch(`/api/candidates?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&include_poll=false`,{cache:'no-cache'}),directory=await r.json();
-    if(!r.ok)throw new Error(directory.detail||'Falha ao carregar candidaturas');
+    const directory=await requestJson(`/api/candidates?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&include_poll=false`,{cache:'no-cache',timeout:8000});
     if(seq!==state.requestSeq||state.office!==office||state.scope!==scope)return;
     cacheWrite(key,directory);
     applyDirectory(directory,false);
@@ -196,7 +208,7 @@ function fillCandidateDetail(c){
   const assets=c.assets||[];qs('#assetsCard').innerHTML=assets.length?`<div class="asset-total"><small>Patrimônio total declarado</small><strong>${money(c.assets_total)}</strong><span class="muted">${assets.length} bens declarados</span></div><div class="asset-list">${assets.slice(0,12).map(a=>`<div class="asset-item"><b><span>${esc(a.type||'Bem')}</span><span>${money(a.value)}</span></b><small>${esc(a.description||'')}</small></div>`).join('')}</div>`:'<div class="empty-detail">Detalhes patrimoniais carregam quando disponíveis na base pública.</div>';
 }
 async function loadCandidateDetail(c,context){
-  try{const r=await fetch(`/api/candidates/${encodeURIComponent(context.office)}/${encodeURIComponent(context.scope)}/${encodeURIComponent(c.id)}`,{cache:'force-cache'}),d=await r.json();if(!r.ok)return;if(state.selectedCandidate?.id!==c.id)return;state.selectedCandidate={...c,...d,_office:context.office,_scope:context.scope};fillCandidateDetail(state.selectedCandidate)}catch(e){}
+  try{const d=await requestJson(`/api/candidates/${encodeURIComponent(context.office)}/${encodeURIComponent(context.scope)}/${encodeURIComponent(c.id)}`,{cache:'force-cache',timeout:8000});if(state.selectedCandidate?.id!==c.id)return;state.selectedCandidate={...c,...d,_office:context.office,_scope:context.scope};fillCandidateDetail(state.selectedCandidate)}catch(e){qs('#assetsCard').innerHTML='<div class="empty-detail">Não foi possível carregar os detalhes agora.</div>'}
 }
 
 function renderFavorites(){
@@ -211,7 +223,7 @@ function showView(name){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-async function loadCatalog(){try{const r=await fetch('/api/g1/catalog',{cache:'force-cache'});if(r.ok)state.catalog=await r.json()}catch(e){}}
+async function loadCatalog(){try{state.catalog=await requestJson('/api/g1/catalog',{cache:'force-cache',timeout:6000})}catch(e){state.catalog=null}}
 function availableInstitutes(office=qs('#pollOffice').value,scope=state.scope){
   const label={presidente:'Presidente',governador:'Governador',senador:'Senador'}[office],cargo=state.catalog?.cargos?.find(x=>x.nome===label),loc=cargo?.localidades?.find(x=>String(x.uf).toLowerCase()===scope);
   return loc?.turnos?.['1-turno']||[];
@@ -220,7 +232,7 @@ function syncInstitutes(){const sel=qs('#pollInstitute'),cur=sel.value,available
 function fillPollFilters(d){const q=qs('#pollQuestion'),qc=q.value;q.innerHTML=(d.available_questions||[]).map(x=>`<option value="${esc(x.code)}">${esc(x.label)}</option>`).join('')||`<option value="${esc(d.question_code||'')}">${esc(d.question||'Pergunta')}</option>`;q.value=[...q.options].some(o=>o.value===qc)?qc:(d.question_code||q.options[0]?.value||'');const s=qs('#pollStratum'),sv=s.value,groups={};(d.strata||[]).forEach(x=>(groups[x.group||'Outros']??=[]).push(x));s.innerHTML='<option value="">Total</option>'+Object.entries(groups).map(([g,items])=>`<optgroup label="${esc(g)}">${items.map(x=>`<option value="${esc((x.group_slug||g)+'|'+x.label)}">${esc(x.label)}</option>`).join('')}</optgroup>`).join('');if([...s.options].some(o=>o.value===sv))s.value=sv}
 async function highQualityDirectoryForPoll(office,scope){
   const key=directoryKey(office,scope),cached=cacheRead(key,DIRECTORY_TTL);if(cached)return cached;
-  try{const r=await fetch(`/api/candidates?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&include_poll=false`,{cache:'force-cache'}),d=await r.json();if(r.ok){cacheWrite(key,d);return d}}catch(e){}return null;
+  try{const d=await requestJson(`/api/candidates?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&include_poll=false`,{cache:'force-cache',timeout:7000});cacheWrite(key,d);return d}catch(e){}return null;
 }
 function mergeHighQualityPollPhotos(poll,directory){
   if(!directory)return poll;(poll.choices||[]).forEach(choice=>{const c=matchPollChoice({ballot_name:choice.name,name:choice.name},directory.candidates||[]);if(c?.photo)choice.hq_photo=c.photo});return poll;
@@ -234,7 +246,7 @@ async function loadPoll(reset=false){
   if(!cached)qs('#pollList').innerHTML='<div class="card coming skeleton" style="height:150px"></div>';
   let url=`/api/g1/poll?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&round=1`;if(inst)url+=`&institute=${encodeURIComponent(inst)}`;if(qcode)url+=`&question=${encodeURIComponent(qcode)}`;
   try{
-    const [pr,dir]=await Promise.all([fetch(url,{cache:'no-cache'}),highQualityDirectoryForPoll(office,scope)]),d=await pr.json();if(!pr.ok)throw new Error(d.detail||'Pesquisa indisponível');mergeHighQualityPollPhotos(d,dir);state.poll=d;state.pollContext=`${office}:${scope}`;cacheWrite(cacheKey,d);fillPollFilters(d);renderPoll();
+    const [d,dir]=await Promise.all([requestJson(url,{cache:'no-cache',timeout:9000}),highQualityDirectoryForPoll(office,scope)]);mergeHighQualityPollPhotos(d,dir);state.poll=d;state.pollContext=`${office}:${scope}`;cacheWrite(cacheKey,d);fillPollFilters(d);renderPoll();
   }catch(e){if(!cached){qs('#pollMeta').textContent='';qs('#pollList').innerHTML=`<div class="card coming"><b>Pesquisa indisponível</b><br>${esc(e.message)}</div>`;qs('#methodology').style.display='none'}}
 }
 function renderPoll(){
@@ -261,8 +273,8 @@ async function detectLocation(){
   if(!navigator.geolocation){updateGeoStatus('Localização não disponível neste navegador');return}
   btn.classList.remove('saved');btn.classList.add('detecting');title.textContent='Usar minha localização';small.textContent='Detectando…';
   navigator.geolocation.getCurrentPosition(async p=>{try{
-    const r=await fetch(`/api/location/reverse?lat=${encodeURIComponent(p.coords.latitude)}&lon=${encodeURIComponent(p.coords.longitude)}`,{cache:'force-cache'}),d=await r.json(),code=String(d.uf||'').toLowerCase();
-    if(r.ok&&states[code]){btn.classList.remove('detecting');btn.classList.add('saved');title.textContent='Localização salva';small.textContent=states[code];selectState(code,'detected');return}
+    const d=await requestJson(`/api/location/reverse?lat=${encodeURIComponent(p.coords.latitude)}&lon=${encodeURIComponent(p.coords.longitude)}`,{cache:'force-cache',timeout:7000}),code=String(d.uf||'').toLowerCase();
+    if(states[code]){btn.classList.remove('detecting');btn.classList.add('saved');title.textContent='Localização salva';small.textContent=states[code];selectState(code,'detected');return}
     updateGeoStatus('Estado não identificado');
   }catch(e){updateGeoStatus('Não foi possível identificar o estado')}},()=>updateGeoStatus('Permissão de localização não concedida'),{enableHighAccuracy:false,timeout:7000,maximumAge:3600000});
 }
