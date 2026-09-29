@@ -71,3 +71,25 @@ jobs:
           name: colinha-browser-screenshots-${{ matrix.engine }}
           path: artifacts/
           if-no-files-found: ignore
+
+  live-source-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run live-source smoke matrix
+        env:
+          ELECTION_MODE: simulation
+          G1_DAILY_ENABLED: "false"
+        run: python -m app.smoke --quick
