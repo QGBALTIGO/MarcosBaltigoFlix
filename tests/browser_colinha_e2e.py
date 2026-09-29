@@ -736,6 +736,40 @@ def test_empty_colinha_training_allows_blank(browser: Browser, base_url: str) ->
         context.close()
 
 
+
+def test_native_share_failure_falls_back_to_download(browser: Browser, base_url: str) -> None:
+    context = new_context(browser)
+    context.add_init_script(
+        """
+        Object.defineProperty(navigator, 'canShare', {
+          configurable: true,
+          value: () => true
+        });
+        Object.defineProperty(navigator, 'share', {
+          configurable: true,
+          value: async () => {
+            const error = new Error('native share unavailable');
+            error.name = 'NotAllowedError';
+            throw error;
+          }
+        });
+        """
+    )
+    try:
+        page, errors = page_with_errors(context, base_url)
+        open_colinha(page)
+        fill_vote(page, "federal", "1313")
+        with page.expect_download(timeout=15_000) as download_info:
+            page.locator("#colinhaSaveImage").click()
+        download = download_info.value
+        assert download.suggested_filename == "minha-colinha-MS.png"
+        assert Path(download.path()).stat().st_size > 1000
+        expect(page.locator(".colinha-toast")).to_contain_text("salva pelo navegador")
+        assert not errors, errors
+    finally:
+        context.close()
+
+
 def test_accessibility_basics(browser: Browser, base_url: str) -> None:
     context = new_context(browser)
     try:
@@ -782,6 +816,7 @@ def run_suite(playwright: Playwright, base_url: str) -> None:
         ("state_scoped_persistence", test_state_scoped_persistence),
         ("inline_search_switch_and_accents", test_inline_search_switch_and_accents),
         ("empty_colinha_training_allows_blank", test_empty_colinha_training_allows_blank),
+        ("native_share_failure_falls_back_to_download", test_native_share_failure_falls_back_to_download),
         ("accessibility_basics", test_accessibility_basics),
     ]
     failures: list[tuple[str, BaseException]] = []
