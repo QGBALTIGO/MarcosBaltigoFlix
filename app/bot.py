@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.constants import ParseMode
@@ -16,8 +17,10 @@ from .storage import Storage, milestone_for
 from .telegram_rich import (
     RichMessageError,
     answer_inline_rich_query,
+    STATE_RESULT_PAGE_SIZE,
     build_g1_channel_rich_html,
     build_president_result_rich_html,
+    build_state_office_result_rich_html,
     edit_rich_html,
     send_rich_html,
 )
@@ -113,12 +116,95 @@ def states_keyboard() -> InlineKeyboardMarkup:
     ]
     rows = [
         [
-            InlineKeyboardButton(label, callback_data=f"result:{scope}")
+            InlineKeyboardButton(label, callback_data=f"state:{scope}")
             for label, scope in ufs[index:index + 3]
         ]
         for index in range(0, len(ufs), 3)
     ]
     rows.append([InlineKeyboardButton("⬅️ Voltar", callback_data="start:home")])
+    return InlineKeyboardMarkup(rows)
+
+
+STATE_OFFICE_LABELS = {
+    "federal": "Deputado Federal",
+    "estadual": "Deputado Estadual",
+    "senador": "Senador",
+    "governador": "Governador",
+}
+
+
+def state_office_label(scope: str, office: str) -> str:
+    if scope == "df" and office == "estadual":
+        return "Deputado Distrital"
+    return STATE_OFFICE_LABELS.get(office, office.title())
+
+
+def parse_state_inline_query(query: str) -> tuple[str, str, int] | None:
+    normalized = " ".join((query or "").strip().lower().split())
+    match = re.fullmatch(
+        r"(?:estado\s+)?([a-z]{2})\s+(federal|estadual|senador|governador)(?:\s+(\d+))?",
+        normalized,
+    )
+    if not match:
+        return None
+    scope, office, raw_page = match.groups()
+    if scope not in VALID_UFS:
+        return None
+    return scope, office, int(raw_page or 0)
+
+
+def state_office_keyboard(scope: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🏛️ Deputado Federal", callback_data=f"state:open:{scope}:federal:0"),
+            InlineKeyboardButton(
+                "🏢 Deputado Distrital" if scope == "df" else "🏢 Deputado Estadual",
+                callback_data=f"state:open:{scope}:estadual:0",
+            ),
+        ],
+        [
+            InlineKeyboardButton("🗳️ Senador", callback_data=f"state:open:{scope}:senador:0"),
+            InlineKeyboardButton("🏛️ Governador", callback_data=f"state:open:{scope}:governador:0"),
+        ],
+        [InlineKeyboardButton("⬅️ Estados", callback_data="start:states")],
+    ])
+
+
+def state_office_fallback_keyboard(
+    settings: Settings,
+    *,
+    scope: str,
+    office: str,
+    page: int,
+    pages: int,
+    external_chat: bool = False,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav.append(InlineKeyboardButton("⬅️ Anterior", callback_data=f"state:view:{scope}:{office}:{page - 1}"))
+        if page < pages - 1:
+            nav.append(InlineKeyboardButton("Próxima ➡️", callback_data=f"state:view:{scope}:{office}:{page + 1}"))
+        if nav:
+            rows.append(nav)
+
+    rows.append([
+        InlineKeyboardButton("🔄 Atualizar", callback_data=f"state:refresh:{scope}:{office}:{page}"),
+        InlineKeyboardButton(
+            "📊 Painel ao vivo",
+            url=bot_panel_deep_link(settings) if external_chat or not settings.webapp_url else None,
+            web_app=None if external_chat or not settings.webapp_url else WebAppInfo(settings.webapp_url),
+        ),
+    ])
+    if not external_chat:
+        rows.append([
+            InlineKeyboardButton("⬅️ Voltar", callback_data=f"state:{scope}"),
+            InlineKeyboardButton(
+                "📤 Compartilhar",
+                switch_inline_query=f"estado {scope} {office} {page}",
+            ),
+        ])
     return InlineKeyboardMarkup(rows)
 
 
@@ -390,7 +476,44 @@ class ElectionBot:
         inline = update.inline_query
         if not inline:
             return
-        query = (inline.query or "").strip().lower()
+        query = " ".join((inline.query or "").strip().lower().split())
+
+        state_request = parse_state_inline_query(query)
+        if state_request:
+            scope, office, page = state_request
+            try:
+                result, _ = await self.results.fetch(scope, office=office, force=True)
+                pages = self._state_page_count(result)
+                page = min(max(0, page), pages - 1)
+                rich_html = self._state_office_rich(
+                    result,
+                    office=office,
+                    page=page,
+                    shared=True,
+                )
+                place = UF_NAMES.get(scope, scope.upper())
+                office_name = state_office_label(scope, office)
+                status = (
+                    "Aguardando início da apuração oficial"
+                    if is_pre_election(result)
+                    else f"{result.sections_counted_pct:.2f}% das seções totalizadas".replace(".", ",")
+                )
+                await answer_inline_rich_query(
+                    token=self.settings.telegram_bot_token,
+                    inline_query_id=inline.id,
+                    rich_html=rich_html,
+                    result_id=f"estado-{scope}-{office}-p{page}-2026",
+                    title=f"🗳️ {office_name} • {place}",
+                    description=f"Página {page + 1}/{pages} • {status}",
+                )
+            except Exception:
+                log.exception("Falha respondendo inline de estado/cargo")
+                try:
+                    await inline.answer([], cache_time=1)
+                except TelegramError:
+                    pass
+            return
+
         if query not in {"", "presidente", "presidente br", "br"}:
             await inline.answer([], cache_time=1)
             return
@@ -800,11 +923,72 @@ class ElectionBot:
             except RichMessageError as exc:
                 log.warning("Não foi possível atualizar Rich Message presidencial: %s", exc)
             return
+        if data.startswith("state:open:"):
+            if not await self._guard_required_channel(update, context):
+                return
+            _, _, scope, office, raw_page = data.split(":", 4)
+            if scope not in VALID_UFS or office not in STATE_OFFICE_LABELS:
+                return
+            if query.message:
+                await self._send_state_office_rich(
+                    query.message,
+                    scope=scope,
+                    office=office,
+                    page=int(raw_page),
+                    edit=True,
+                )
+            return
+        if data.startswith("state:view:") or data.startswith("state:refresh:"):
+            _, action, scope, office, raw_page = data.split(":", 4)
+            if scope not in VALID_UFS or office not in STATE_OFFICE_LABELS:
+                return
+            page = int(raw_page)
+            force = action == "refresh"
+            try:
+                result, _ = await self.results.fetch(scope, office=office, force=force)
+                if query.inline_message_id:
+                    await edit_rich_html(
+                        token=self.settings.telegram_bot_token,
+                        inline_message_id=query.inline_message_id,
+                        rich_html=self._state_office_rich(
+                            result,
+                            office=office,
+                            page=page,
+                            shared=True,
+                        ),
+                    )
+                elif query.message:
+                    await edit_rich_html(
+                        token=self.settings.telegram_bot_token,
+                        chat_id=query.message.chat_id,
+                        message_id=query.message.message_id,
+                        rich_html=self._state_office_rich(
+                            result,
+                            office=office,
+                            page=page,
+                            external_chat=query.message.chat.type != "private",
+                        ),
+                    )
+            except RichMessageError as exc:
+                log.warning("Não foi possível atualizar Rich Message de estado: %s", exc)
+            return
+        if data.startswith("state:") and data.count(":") == 1:
+            scope = data.split(":", 1)[1]
+            if scope not in VALID_UFS:
+                return
+            if query.message:
+                await query.edit_message_text(
+                    f"<b>🗺️ {UF_NAMES.get(scope, scope.upper())}</b>\n\n"
+                    "Escolha o cargo que deseja acompanhar:",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=state_office_keyboard(scope),
+                )
+            return
         if data == "start:states":
             if query.message:
                 await query.edit_message_text(
                     "<b>🗺️ Resultados por estado</b>\n\n"
-                    "Escolha uma UF para consultar o resultado presidencial.",
+                    "Escolha uma UF para selecionar o cargo.",
                     parse_mode=ParseMode.HTML,
                     reply_markup=states_keyboard(),
                 )

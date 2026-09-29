@@ -1,6 +1,11 @@
 from app.g1_polls import Discovery, parse_g1_payload
 from app.models import Candidate, ElectionResult
-from app.telegram_rich import build_g1_channel_rich_html, build_president_result_rich_html
+from app.telegram_rich import (
+    STATE_RESULT_PAGE_SIZE,
+    build_g1_channel_rich_html,
+    build_president_result_rich_html,
+    build_state_office_result_rich_html,
+)
 
 
 def _poll():
@@ -183,3 +188,139 @@ def test_shared_president_rich_keeps_update_button_for_groups():
     assert "📤 Compartilhar" not in rich
     assert "<b>52,63%</b>" in rich
     assert "25%" in rich
+
+
+
+def _state_result(scope: str = "ms", count: int = 19, pre_election: bool = True) -> ElectionResult:
+    candidates = []
+    for index in range(1, count + 1):
+        candidates.append(
+            Candidate(
+                number=1000 + index,
+                sequence=index,
+                candidate_id=str(index),
+                name=f"CANDIDATO {index:02d}",
+                ballot_name=f"CANDIDATO {index:02d}",
+                party=f"P{index:02d}",
+                party_name=f"PARTIDO {index:02d}",
+                votes=0 if pre_election else (count - index + 1) * 100,
+                percentage=0.0 if pre_election else round((count - index + 1) / 190 * 100, 2),
+                percentage_exact=0.0 if pre_election else round((count - index + 1) / 190 * 100, 2),
+                vote_destination="",
+                official_status="",
+                elected_flag=False,
+                vice_name="",
+                vice_party="",
+            )
+        )
+    return ElectionResult(
+        scope=scope,
+        election_code=6259,
+        round=1,
+        phase="pre_election" if pre_election else "oficial",
+        generated_date="" if pre_election else "04/10/2026",
+        generated_time="" if pre_election else "17:20:00",
+        totalization_date="" if pre_election else "04/10/2026",
+        totalization_time="" if pre_election else "17:20:00",
+        generation_id=f"state-{scope}",
+        disclosure_enabled=not pre_election,
+        final_totalization=False,
+        progress_status="Aguardando" if pre_election else "em andamento",
+        mathematically_defined="",
+        no_elected_assignment=False,
+        no_elected_reasons=[],
+        sections_total=0 if pre_election else 100,
+        sections_counted=0 if pre_election else 20,
+        sections_pending=0 if pre_election else 80,
+        sections_counted_pct=0.0 if pre_election else 20.0,
+        electorate_total=0 if pre_election else 1000,
+        turnout=0 if pre_election else 500,
+        turnout_pct=0.0 if pre_election else 50.0,
+        abstention=0 if pre_election else 500,
+        abstention_pct=0.0 if pre_election else 50.0,
+        total_votes=0 if pre_election else 10000,
+        valid_votes=0 if pre_election else 9500,
+        blank_votes=0 if pre_election else 200,
+        null_votes=0 if pre_election else 300,
+        void_votes=0,
+        void_sub_judice_votes=0,
+        candidates=candidates,
+    )
+
+
+def test_state_rich_first_page_has_pagination_and_contextual_share():
+    result = _state_result()
+    rich = build_state_office_result_rich_html(
+        result,
+        office="federal",
+        page=0,
+        panel_url="https://example.test/app",
+        panel_web_app=True,
+        shared=False,
+    )
+
+    assert STATE_RESULT_PAGE_SIZE == 8
+    assert "<h2>🗳️ Deputado Federal • Mato Grosso do Sul</h2>" in rich
+    assert "Página 1 de 3 · 19 candidaturas" in rich
+    assert "CANDIDATO 01" in rich
+    assert "CANDIDATO 08" in rich
+    assert "CANDIDATO 09" not in rich
+    assert "Próxima ➡️" in rich
+    assert "⬅️ Anterior" not in rich
+    assert 'data="state:view:ms:federal:1"' in rich
+    assert 'data="state:refresh:ms:federal:0"' in rich
+    assert 'query="estado ms federal 0"' in rich
+    assert "⬅️ Voltar" in rich
+    assert "📤 Compartilhar" in rich
+
+
+def test_state_rich_middle_page_has_previous_and_next():
+    rich = build_state_office_result_rich_html(
+        _state_result(),
+        office="senador",
+        page=1,
+        panel_url="https://example.test/app",
+        shared=False,
+    )
+
+    assert "Página 2 de 3 · 19 candidaturas" in rich
+    assert "CANDIDATO 09" in rich
+    assert "CANDIDATO 16" in rich
+    assert "CANDIDATO 08" not in rich
+    assert "CANDIDATO 17" not in rich
+    assert 'data="state:view:ms:senador:0"' in rich
+    assert 'data="state:view:ms:senador:2"' in rich
+    assert 'data="state:refresh:ms:senador:1"' in rich
+
+
+def test_state_rich_last_page_clamps_and_shared_keeps_context():
+    rich = build_state_office_result_rich_html(
+        _state_result(),
+        office="governador",
+        page=999,
+        panel_url="https://t.me/ResultadoEleicoes_Bot?start=painel",
+        panel_web_app=False,
+        shared=True,
+    )
+
+    assert "Página 3 de 3 · 19 candidaturas" in rich
+    assert "CANDIDATO 17" in rich
+    assert "CANDIDATO 19" in rich
+    assert "Próxima ➡️" not in rich
+    assert "⬅️ Anterior" in rich
+    assert 'data="state:view:ms:governador:1"' in rich
+    assert 'data="state:refresh:ms:governador:2"' in rich
+    assert "📊 Painel ao vivo" in rich
+    assert "⬅️ Voltar" not in rich
+    assert "📤 Compartilhar" not in rich
+
+
+def test_df_state_rich_uses_distrital_name():
+    rich = build_state_office_result_rich_html(
+        _state_result(scope="df", count=2),
+        office="estadual",
+        page=0,
+        panel_url="",
+        shared=False,
+    )
+    assert "<h2>🗳️ Deputado Distrital • Distrito Federal</h2>" in rich
