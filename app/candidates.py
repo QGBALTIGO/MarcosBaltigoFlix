@@ -300,7 +300,7 @@ class CandidateDirectory:
         return self._put(key, grouped)
 
     async def detail(self, office: str, scope: str, candidate_id: str) -> dict[str, Any]:
-        listing = await self.list(office, scope, include_poll=True)
+        listing = await self.list(office, scope, include_poll=False)
         candidate = next(
             (item for item in listing["candidates"] if item["id"] == str(candidate_id)),
             None,
