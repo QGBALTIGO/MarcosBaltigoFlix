@@ -403,7 +403,7 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
         # Search-by-name path.
         page.locator('[data-colinha-clear="estadual"]').click()
         page.locator('[data-colinha-search="estadual"]').click()
-        expect(page.locator("#colinhaPickerSheet")).to_have_class(lambda cls: "show" in cls)
+        assert "show" in (page.locator("#colinhaPickerSheet").get_attribute("class") or "")
         page.locator("#colinhaPickerSearch").fill("bruno")
         expect(page.locator("#colinhaPickerList .colinha-picker-item")).to_have_count(1)
         page.locator("#colinhaPickerList .colinha-picker-item").click()
@@ -432,7 +432,7 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
 
         # Urna flow: one deliberate divergence, then finish the six steps.
         page.locator("#colinhaTrain").click()
-        expect(page.locator("#urnaModal")).to_have_class(lambda cls: "show" in cls)
+        assert "show" in (page.locator("#urnaModal").get_attribute("class") or "")
 
         click_urna_digits(page, "1313")
         expect(page.locator("#urnaCandidate")).to_contain_text("ANA FEDERAL")
@@ -479,7 +479,7 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
         expect(page.locator(".urna-number-box.filled")).to_have_count(0)
 
         page.locator("#urnaClose").click()
-        expect(page.locator("#urnaModal")).not_to_have_class(lambda cls: "show" in cls)
+        assert "show" not in (page.locator("#urnaModal").get_attribute("class") or "")
 
         page.screenshot(path=str(ARTIFACTS / "colinha-390x844.png"), full_page=True)
         assert not errors, errors
@@ -495,11 +495,11 @@ def test_legend_and_invalid_votes(browser: Browser, base_url: str) -> None:
 
         fill_vote(page, "federal", "13")
         expect(page.locator('[data-colinha-match="federal"]')).to_contain_text("Voto de legenda")
-        expect(page.locator('[data-colinha-slot="federal"]')).to_have_class(lambda cls: "is-match" in cls)
+        assert "is-match" in (page.locator('[data-colinha-slot="federal"]').get_attribute("class") or "")
 
         fill_vote(page, "governador", "99")
         expect(page.locator('[data-colinha-match="governador"]')).to_contain_text("Número não identificado")
-        expect(page.locator('[data-colinha-slot="governador"]')).to_have_class(lambda cls: "is-invalid" in cls)
+        assert "is-invalid" in (page.locator('[data-colinha-slot="governador"]').get_attribute("class") or "")
 
         page.locator("#colinhaTrain").click()
         click_urna_digits(page, "13")
@@ -567,7 +567,7 @@ def test_source_failure_is_visible(browser: Browser, base_url: str) -> None:
         open_colinha(page)
         fill_vote(page, "estadual", "13131")
         expect(page.locator('[data-colinha-match="estadual"]')).to_contain_text("Fonte indisponível", timeout=10_000)
-        expect(page.locator('[data-colinha-slot="estadual"]')).to_have_class(lambda cls: "is-invalid" in cls)
+        assert "is-invalid" in (page.locator('[data-colinha-slot="estadual"]').get_attribute("class") or "")
 
         page.locator('[data-colinha-search="estadual"]').click()
         expect(page.locator("#colinhaPickerList")).to_contain_text("Não foi possível carregar", timeout=10_000)
@@ -623,7 +623,7 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
     )
     try:
         page, errors = page_with_errors(context, base_url)
-        expect(page.locator("body")).to_have_class(lambda cls: "tg-fullscreen" in cls, timeout=5_000)
+        page.wait_for_function("document.body.classList.contains('tg-fullscreen')", timeout=5_000)
         open_colinha(page)
 
         # Simulate the visual viewport shrinking as a mobile keyboard opens.
@@ -637,7 +637,7 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
             }
             """
         )
-        expect(page.locator("body")).to_have_class(lambda cls: "keyboard-open" in cls)
+        assert "keyboard-open" in (page.locator("body").get_attribute("class") or "")
         nav_opacity = page.locator(".bottom-nav").evaluate("el => getComputedStyle(el).opacity")
         sticky_opacity = page.locator(".colinha-sticky-actions").evaluate("el => getComputedStyle(el).opacity")
         assert float(nav_opacity) == 0.0
