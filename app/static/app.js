@@ -27,20 +27,41 @@ let state={
   detailContext:null,requestSeq:0,pollContext:null,resultContext:null
 };
 
+function isTelegramIOS(){
+  const tg=window.Telegram?.WebApp;
+  const platform=String(tg?.platform||'').toLowerCase();
+  return platform==='ios'||/iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+}
 function syncTelegramViewport(){
   const tg=window.Telegram?.WebApp;if(!tg)return;
   const safe=tg.safeAreaInset||{},content=tg.contentSafeAreaInset||{};
-  const top=Math.max(Number(safe.top)||0,Number(content.top)||0);
-  const right=Math.max(Number(safe.right)||0,Number(content.right)||0);
-  const bottom=Math.max(Number(safe.bottom)||0,Number(content.bottom)||0);
-  const left=Math.max(Number(safe.left)||0,Number(content.left)||0);
+  const systemTop=Number(safe.top)||0,systemRight=Number(safe.right)||0,systemBottom=Number(safe.bottom)||0,systemLeft=Number(safe.left)||0;
+  const contentTop=Number(content.top)||0,contentRight=Number(content.right)||0,contentBottom=Number(content.bottom)||0,contentLeft=Number(content.left)||0;
+  const fallbackTop=tg.isFullscreen?(isTelegramIOS()?96:76):0;
+  const topClearance=Math.max(systemTop,contentTop,fallbackTop);
+  const rightClearance=Math.max(systemRight,contentRight);
+  const bottomClearance=Math.max(systemBottom,contentBottom);
+  const leftClearance=Math.max(systemLeft,contentLeft);
   const root=document.documentElement;
-  root.style.setProperty('--tg-safe-top',top+'px');
-  root.style.setProperty('--tg-safe-right',right+'px');
-  root.style.setProperty('--tg-safe-bottom',bottom+'px');
-  root.style.setProperty('--tg-safe-left',left+'px');
+  root.style.setProperty('--tg-system-top',systemTop+'px');
+  root.style.setProperty('--tg-system-right',systemRight+'px');
+  root.style.setProperty('--tg-system-bottom',systemBottom+'px');
+  root.style.setProperty('--tg-system-left',systemLeft+'px');
+  root.style.setProperty('--tg-content-top',contentTop+'px');
+  root.style.setProperty('--tg-content-right',contentRight+'px');
+  root.style.setProperty('--tg-content-bottom',contentBottom+'px');
+  root.style.setProperty('--tg-content-left',contentLeft+'px');
+  root.style.setProperty('--tg-top-clearance',topClearance+'px');
+  root.style.setProperty('--tg-right-clearance',rightClearance+'px');
+  root.style.setProperty('--tg-bottom-clearance',bottomClearance+'px');
+  root.style.setProperty('--tg-left-clearance',leftClearance+'px');
   if(Number(tg.viewportStableHeight)>0)root.style.setProperty('--tg-stable-height',Number(tg.viewportStableHeight)+'px');
   document.body.classList.toggle('tg-fullscreen',!!tg.isFullscreen);
+  document.body.classList.toggle('tg-ios',isTelegramIOS());
+}
+function resyncTelegramViewport(){
+  syncTelegramViewport();
+  [80,220,500].forEach(ms=>setTimeout(syncTelegramViewport,ms));
 }
 function requestTelegramFullscreen(){
   const tg=window.Telegram?.WebApp;if(!tg)return;
@@ -50,21 +71,21 @@ function requestTelegramFullscreen(){
     tg.setHeaderColor('#080c12');
     tg.setBackgroundColor('#080c12');
     if(typeof tg.setBottomBarColor==='function')tg.setBottomBarColor('#080c12');
-    if(typeof tg.disableVerticalSwipes==='function')tg.disableVerticalSwipes();
     syncTelegramViewport();
     if(typeof tg.requestFullscreen==='function'&&!tg.isFullscreen)tg.requestFullscreen();
-  }catch(e){syncTelegramViewport()}
+    resyncTelegramViewport();
+  }catch(e){resyncTelegramViewport()}
 }
 function initTelegramMiniApp(){
   const tg=window.Telegram?.WebApp;if(!tg)return;
   try{
     if(typeof tg.onEvent==='function'){
-      tg.onEvent('safeAreaChanged',syncTelegramViewport);
-      tg.onEvent('contentSafeAreaChanged',syncTelegramViewport);
-      tg.onEvent('viewportChanged',syncTelegramViewport);
-      tg.onEvent('fullscreenChanged',syncTelegramViewport);
-      tg.onEvent('fullscreenFailed',()=>{syncTelegramViewport();try{tg.expand()}catch(e){}});
-      tg.onEvent('activated',()=>{syncTelegramViewport();if(!tg.isFullscreen)requestTelegramFullscreen()});
+      tg.onEvent('safeAreaChanged',resyncTelegramViewport);
+      tg.onEvent('contentSafeAreaChanged',resyncTelegramViewport);
+      tg.onEvent('viewportChanged',resyncTelegramViewport);
+      tg.onEvent('fullscreenChanged',resyncTelegramViewport);
+      tg.onEvent('fullscreenFailed',()=>{resyncTelegramViewport();try{tg.expand()}catch(e){}});
+      tg.onEvent('activated',()=>{resyncTelegramViewport();if(!tg.isFullscreen)requestTelegramFullscreen()});
     }
   }catch(e){}
   requestTelegramFullscreen();
