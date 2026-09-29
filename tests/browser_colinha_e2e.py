@@ -803,9 +803,9 @@ def test_results_use_real_candidates_at_zero_before_apuration(browser: Browser, 
         page.wait_for_selector('[data-real-candidate]', timeout=8_000)
         page.wait_for_timeout(180)
 
-        expect(page.locator("#summaryModeTitle")).to_have_text("APURAÇÃO")
-        expect(page.locator("#totalVotes")).to_have_text("0 votos")
-        expect(page.locator("#validShare")).to_have_text("0%")
+        expect(page.locator("#summaryModeTitle")).to_have_text("VOTAÇÃO")
+        expect(page.locator("#totalVotes")).to_have_text("— votos")
+        expect(page.locator("#validShare")).to_have_text("—")
         expect(page.locator("#candidateArea")).to_contain_text("GABI PRESIDÊNCIA")
         expect(page.locator("#candidateArea")).to_contain_text("0%")
         expect(page.locator("#candidateArea")).to_contain_text("Aguardando apuração oficial")
