@@ -301,6 +301,15 @@
       openColinhaStatePicker();
       return;
     }
+    qsa('[data-colinha-inline-search]').forEach(function(otherPanel){
+      if(otherPanel.dataset.colinhaInlineSearch===key)return;
+      otherPanel.hidden=true;
+      var otherCard=otherPanel.closest('.colinha-card');
+      var otherTrigger=otherCard&&otherCard.querySelector('[data-colinha-search]');
+      var otherInput=otherCard&&otherCard.querySelector('[data-colinha-name-input]');
+      if(otherTrigger)otherTrigger.hidden=false;
+      if(otherInput)otherInput.blur();
+    });
     cstate.pickerSlot=key;
     var card=qs('[data-colinha-slot="'+key+'"]');
     if(!card)return;
