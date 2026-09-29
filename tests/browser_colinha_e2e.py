@@ -638,6 +638,7 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
             """
         )
         assert "keyboard-open" in (page.locator("body").get_attribute("class") or "")
+        page.wait_for_timeout(250)
         nav_opacity = page.locator(".bottom-nav").evaluate("el => getComputedStyle(el).opacity")
         sticky_opacity = page.locator(".colinha-sticky-actions").evaluate("el => getComputedStyle(el).opacity")
         assert float(nav_opacity) == 0.0
