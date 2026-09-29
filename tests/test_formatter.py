@@ -11,6 +11,7 @@ def settings():
         tse_base_url="https://example.test",
         tse_environment="simulado2026",
         tse_election_code=21270,
+        tse_state_election_code=21272,
         tse_cycle="ele2026",
         tse_president_cargo="0001",
         poll_seconds=20,
