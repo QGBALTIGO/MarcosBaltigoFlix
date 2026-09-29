@@ -673,7 +673,12 @@ def test_accessibility_basics(browser: Browser, base_url: str) -> None:
 
 
 def run_suite(playwright: Playwright, base_url: str) -> None:
-    browser = playwright.chromium.launch(headless=True)
+    engine = os.getenv("E2E_BROWSER", "chromium").strip().lower()
+    if engine not in {"chromium", "webkit", "firefox"}:
+        raise SystemExit(f"Unsupported E2E_BROWSER={engine}")
+    browser_type = getattr(playwright, engine)
+    print(f"BROWSER_ENGINE={engine}")
+    browser = browser_type.launch(headless=True)
     tests: list[tuple[str, Callable[[Browser, str], None]]] = [
         ("full_flow", test_full_flow),
         ("legend_and_invalid_votes", test_legend_and_invalid_votes),
