@@ -26,3 +26,5 @@ body{overflow-x:hidden}.app{width:min(900px,100%);margin:0 auto;padding-bottom:1
 .avatar,.mini-avatar,.detail-photo{object-fit:cover;object-position:center top;image-rendering:auto;backface-visibility:hidden;transform:translateZ(0)}
 .nav-btn,.chip,.candidate-card,.candidate-row,.poll-card,.state-item,.analysis-btn,.more-btn,.icon-btn,.close-btn,.heart-btn{touch-action:manipulation}
 .nav-btn,.chip{user-select:none;-webkit-user-select:none}
+
+.state-flag.flag-fallback::after,.location-flag.flag-fallback::after{content:attr(data-uf);font-weight:850;font-size:13px;letter-spacing:.04em;color:#c9d2df}.location-flag.flag-fallback::after{font-size:11px}
