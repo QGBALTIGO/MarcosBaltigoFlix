@@ -264,7 +264,7 @@ function openFull(id){qs(id).classList.add('show');document.body.style.overflow=
 function closeFull(el){el.closest('.fullscreen').classList.remove('show');document.body.style.overflow=''}
 
 qs('#locationTrigger').onclick=()=>{const title=qs('#locationSheet .sheet-head h2');if(title)title.textContent='Selecionar local';updateGeoStatus();renderStates();openSheet('#locationSheet')};
-qs('#overlay').onclick=closeSheets;qs('[data-close]').forEach(x=>x.onclick=closeSheets);qs('#stateList').addEventListener('click',e=>{const item=e.target.closest('[data-state]');if(!item)return;e.preventDefault();selectState(item.dataset.state,'manual')});qs('#stateSearch').oninput=e=>renderStates(e.target.value);qs('#geoBtn').onclick=detectLocation;qs('#analysisBtn').onclick=openAnalysis;qsa('[data-full-close]').forEach(x=>x.onclick=()=>closeFull(x));
+qs('#overlay').onclick=closeSheets;qsa('[data-close]').forEach(x=>x.onclick=closeSheets);qs('#stateList').addEventListener('click',e=>{const item=e.target.closest('[data-state]');if(!item)return;e.preventDefault();selectState(item.dataset.state,'manual')});qs('#stateSearch').oninput=e=>renderStates(e.target.value);qs('#geoBtn').onclick=detectLocation;qs('#analysisBtn').onclick=openAnalysis;qsa('[data-full-close]').forEach(x=>x.onclick=()=>closeFull(x));
 qs('#detailHeart').onclick=()=>{if(!state.selectedCandidate)return;const on=saveFavorite(state.selectedCandidate);qs('#detailHeart').classList.toggle('active',on);qs('#detailHeart').textContent=on?'♥':'♡'};
 qsa('.nav-btn').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 qsa('.chip').forEach(b=>b.onclick=()=>{const office=b.dataset.office;if(requireStateForOffice(office,'results'))return;setActiveOffice(office);showView('results');loadResults()});
