@@ -538,7 +538,7 @@
     ctx.fillText('Resultado Eleições 2026 · colinha pessoal para consulta e treinamento',64,1285);
     ctx.font='500 16px Arial';
     ctx.fillStyle='#777';
-    ctx.fillText('Confira os números antes de votar. Ferramenta independente; não registra voto.',64,1316);
+    ctx.fillText('Acompanhe resultados e candidatos no Telegram: @ResultadoEleicoes_Bot',64,1316);
 
     return await new Promise(function(resolve,reject){
       canvas.toBlob(function(blob){if(blob)resolve(blob);else reject(new Error('Falha ao gerar imagem.'))},'image/png',1);
