@@ -221,7 +221,12 @@ function mergeOfficialResultIntoDirectory(result){
   });
   const total=Number(result?.total_votes||0);
   if(total>0){
-    state.directory.candidates.sort((a,b)=>Number(b.result_votes||0)-Number(a.result_votes||0)||String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR'));
+    state.directory.candidates.sort((a,b)=>
+      Number(b.result_percentage||0)-Number(a.result_percentage||0)||
+      Number(b.result_votes||0)-Number(a.result_votes||0)||
+      String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR')||
+      Number(a.number||999999)-Number(b.number||999999)
+    );
   }else{
     state.directory.candidates.sort((a,b)=>String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR')||String(a.number).localeCompare(String(b.number),'pt-BR'));
   }
