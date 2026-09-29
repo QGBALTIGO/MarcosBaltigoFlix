@@ -102,3 +102,13 @@ def test_results_summary_uses_official_vote_categories():
     assert "d.void_sub_judice_votes" in js
     assert "d.null_votes" in js
     assert "d.blank_votes" in js
+
+
+def test_webapp_live_candidate_order_uses_percentage_then_votes():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    pct_sort = "Number(b.result_percentage||0)-Number(a.result_percentage||0)"
+    vote_sort = "Number(b.result_votes||0)-Number(a.result_votes||0)"
+    assert pct_sort in js
+    assert vote_sort in js
+    assert js.index(pct_sort) < js.index(vote_sort)
