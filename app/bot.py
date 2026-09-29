@@ -394,13 +394,15 @@ class ElectionBot:
         if await self._is_required_channel_member(update, context):
             return True
         markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Entrar no canal oficial", url=self._required_channel_url())],
-            [InlineKeyboardButton("Verificar inscrição", callback_data="verify_subscription")],
+            [InlineKeyboardButton("📢 Entrar no canal oficial", url=self._required_channel_url())],
+            [InlineKeyboardButton("✅ Verificar inscrição", callback_data="verify_subscription")],
         ])
         text = (
-            "<b>Canal oficial obrigatório</b>\n\n"
-            "Para usar o bot, participe do canal <b>@ResultadoEleicoes</b>. "
-            "Depois, toque em <b>Verificar inscrição</b>."
+            "<b>📢 Acesso ao Resultado Eleições 2026</b>\n\n"
+            "Para continuar, entre no nosso canal oficial: <b>@ResultadoEleicoes</b>.\n\n"
+            "Por lá você acompanha avisos, atualizações e novidades do projeto.\n\n"
+            "Depois de entrar, volte aqui e toque em <b>✅ Verificar inscrição</b> "
+            "para liberar o acesso ao bot."
         )
         if update.effective_message:
             await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=markup)
