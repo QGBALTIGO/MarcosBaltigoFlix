@@ -50,6 +50,7 @@ class Settings:
     tse_base_url: str
     tse_environment: str
     tse_election_code: int
+    tse_state_election_code: int
     tse_cycle: str
     tse_president_cargo: str
     poll_seconds: int
@@ -93,12 +94,14 @@ def get_settings() -> Settings:
             "base": "https://resultados-sim.tse.jus.br/simulado",
             "environment": "simulado2026",
             "election": 21270,
+            "state_election": 21272,
         }
     else:
         defaults = {
             "base": "https://resultados.tse.jus.br",
             "environment": "oficial",
             "election": 6257,
+            "state_election": 6259,
         }
 
     db_path = os.getenv("DATABASE_PATH", "data/election_bot.db")
@@ -110,6 +113,7 @@ def get_settings() -> Settings:
         tse_base_url=os.getenv("TSE_BASE_URL", defaults["base"]).rstrip("/"),
         tse_environment=os.getenv("TSE_ENVIRONMENT", defaults["environment"]).strip("/"),
         tse_election_code=_int("TSE_ELECTION_CODE", defaults["election"]),
+        tse_state_election_code=_int("TSE_STATE_ELECTION_CODE", defaults["state_election"]),
         tse_cycle=os.getenv("TSE_CYCLE", "ele2026").strip("/"),
         tse_president_cargo=os.getenv("TSE_PRESIDENT_CARGO", "0001").zfill(4),
         poll_seconds=max(10, _int("POLL_SECONDS", 20)),

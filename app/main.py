@@ -116,12 +116,20 @@ async def health():
 
 
 @app.get("/api/result")
-async def api_result(scope: str = Query(default="br", min_length=2, max_length=2)):
+async def api_result(
+    scope: str = Query(default="br", min_length=2, max_length=2),
+    office: str = Query(default="presidente"),
+):
     scope = scope.lower()
+    office = office.lower()
     if scope != "br" and scope not in VALID_UFS:
         raise HTTPException(status_code=400, detail="UF inválida")
+    if office not in {"presidente", "governador", "senador", "federal", "estadual"}:
+        raise HTTPException(status_code=400, detail="Cargo inválido")
+    if office != "presidente" and scope == "br":
+        raise HTTPException(status_code=400, detail="Este cargo exige uma UF")
     try:
-        result, _ = await tse.fetch(scope)
+        result, _ = await tse.fetch(scope, office=office)
         data = result.to_dict()
         data["source_label"] = settings.source_label
         data["simulation"] = settings.is_simulation

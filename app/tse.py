@@ -9,6 +9,15 @@ import httpx
 from .config import Settings
 from .models import Candidate, ElectionResult
 
+OFFICE_CARGO_CODES = {
+    "presidente": 1,
+    "governador": 3,
+    "senador": 5,
+    "federal": 6,
+    "estadual": 7,
+    "distrital": 8,
+}
+
 VALID_UFS = {
     "ac", "al", "ap", "am", "ba", "ce", "df", "es", "go", "ma", "mt", "ms",
     "mg", "pa", "pb", "pr", "pe", "pi", "rj", "rn", "rs", "ro", "rr", "sc",
@@ -38,10 +47,13 @@ def _text(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
-def _candidate_iter(data: dict[str, Any]) -> Iterable[tuple[dict[str, Any], dict[str, Any]]]:
+def _candidate_iter(
+    data: dict[str, Any],
+    cargo_code: int = 1,
+) -> Iterable[tuple[dict[str, Any], dict[str, Any]]]:
     """Yield (candidate, party) from the EA20 hierarchy carg -> agr -> par -> cand."""
     for cargo in data.get("carg") or []:
-        if _i(cargo.get("cd")) != 1:
+        if _i(cargo.get("cd")) != cargo_code:
             continue
         for aggregation in cargo.get("agr") or []:
             for party in aggregation.get("par") or []:
@@ -49,11 +61,16 @@ def _candidate_iter(data: dict[str, Any]) -> Iterable[tuple[dict[str, Any], dict
                     yield candidate, party
 
 
-def parse_ea20(data: dict[str, Any], scope: str, raw_url: str = "") -> ElectionResult:
+def parse_ea20(
+    data: dict[str, Any],
+    scope: str,
+    raw_url: str = "",
+    cargo_code: int = 1,
+) -> ElectionResult:
     seen: set[str] = set()
     candidates: list[Candidate] = []
 
-    for cand, party in _candidate_iter(data):
+    for cand, party in _candidate_iter(data, cargo_code=cargo_code):
         candidate_id = _text(cand.get("sqcand")) or f"{cand.get('n')}:{cand.get('nm')}"
         if candidate_id in seen:
             continue
@@ -147,34 +164,57 @@ class TSEClient:
         self._cache: dict[str, ElectionResult] = {}
         self._locks: dict[str, asyncio.Lock] = {}
 
-    def result_url(self, scope: str = "br") -> str:
+    def result_url(self, scope: str = "br", office: str = "presidente") -> str:
         scope = scope.lower().strip()
+        office = office.lower().strip()
         if scope != "br" and scope not in VALID_UFS:
             raise ValueError("UF inválida. Use BR ou uma sigla como MS, SP, RJ.")
-        code = self.settings.tse_election_code
+        if office not in OFFICE_CARGO_CODES:
+            raise ValueError("Cargo inválido.")
+        if office != "presidente" and scope == "br":
+            raise ValueError("Este cargo exige uma UF.")
+
+        actual_office = "distrital" if office == "estadual" and scope == "df" else office
+        cargo_code = OFFICE_CARGO_CODES[actual_office]
+        code = (
+            self.settings.tse_election_code
+            if office == "presidente"
+            else self.settings.tse_state_election_code
+        )
         ecode = f"{code:06d}"
-        cargo = self.settings.tse_president_cargo
+        cargo = f"{cargo_code:04d}"
         filename = f"{scope}-c{cargo}-e{ecode}-u.json"
         return (
             f"{self.settings.tse_base_url}/{self.settings.tse_environment}/"
             f"{self.settings.tse_cycle}/{code}/dados/{scope}/{filename}"
         )
 
-    async def fetch(self, scope: str = "br", force: bool = False) -> tuple[ElectionResult, bool]:
+    async def fetch(
+        self,
+        scope: str = "br",
+        force: bool = False,
+        office: str = "presidente",
+    ) -> tuple[ElectionResult, bool]:
         scope = scope.lower().strip()
-        lock = self._locks.setdefault(scope, asyncio.Lock())
+        office = office.lower().strip()
+        actual_office = "distrital" if office == "estadual" and scope == "df" else office
+        cargo_code = OFFICE_CARGO_CODES.get(actual_office)
+        if cargo_code is None:
+            raise ValueError("Cargo inválido.")
+        cache_key = f"{office}:{scope}"
+        lock = self._locks.setdefault(cache_key, asyncio.Lock())
         async with lock:
-            url = self.result_url(scope)
+            url = self.result_url(scope, office=office)
             headers: dict[str, str] = {}
             if not force:
-                if self._etag.get(scope):
-                    headers["If-None-Match"] = self._etag[scope]
-                if self._last_modified.get(scope):
-                    headers["If-Modified-Since"] = self._last_modified[scope]
+                if self._etag.get(cache_key):
+                    headers["If-None-Match"] = self._etag[cache_key]
+                if self._last_modified.get(cache_key):
+                    headers["If-Modified-Since"] = self._last_modified[cache_key]
 
             response = await self.client.get(url, headers=headers)
             if response.status_code == 304:
-                cached = self._cache.get(scope)
+                cached = self._cache.get(cache_key)
                 if cached is None:
                     # Situação defensiva: um 304 sem cache local não é útil; refaça sem validadores.
                     response = await self.client.get(url)
@@ -183,19 +223,19 @@ class TSEClient:
 
             response.raise_for_status()
             data = response.json()
-            result = parse_ea20(data, scope=scope, raw_url=url)
+            result = parse_ea20(data, scope=scope, raw_url=url, cargo_code=cargo_code)
 
-            old = self._cache.get(scope)
+            old = self._cache.get(cache_key)
             changed = old is None or old.generation_id != result.generation_id or old.totalization_time != result.totalization_time
-            self._cache[scope] = result
+            self._cache[cache_key] = result
             if response.headers.get("etag"):
-                self._etag[scope] = response.headers["etag"]
+                self._etag[cache_key] = response.headers["etag"]
             if response.headers.get("last-modified"):
-                self._last_modified[scope] = response.headers["last-modified"]
+                self._last_modified[cache_key] = response.headers["last-modified"]
             return result, changed
 
-    def cached(self, scope: str = "br") -> ElectionResult | None:
-        return self._cache.get(scope.lower())
+    def cached(self, scope: str = "br", office: str = "presidente") -> ElectionResult | None:
+        return self._cache.get(f"{office.lower()}:{scope.lower()}")
 
     async def close(self) -> None:
         await self.client.aclose()
