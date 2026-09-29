@@ -85,17 +85,13 @@ TIMEZONE=America/Campo_Grande
 
 ## Apuração TSE
 
-Durante os testes:
-
-```env
-ELECTION_MODE=simulation
-```
-
-No dia da eleição, após validar os parâmetros oficiais do TSE:
+O ambiente de produção usa exclusivamente a divulgação oficial:
 
 ```env
 ELECTION_MODE=official
 ```
+
+Antes de o TSE publicar os arquivos de totalização, o sistema monta uma pré-apuração com as candidaturas reais de 2026 e mantém votos, seções e percentuais em `0`. Quando o arquivo oficial passa a existir, a troca para a apuração publicada pelo TSE é automática.
 
 O cliente usa os arquivos EA20 e validadores HTTP `ETag`/`Last-Modified`.
 
