@@ -988,7 +988,7 @@ class ElectionBot:
             if query.message:
                 await query.edit_message_text(
                     "<b>🗺️ Resultados por estado</b>\n\n"
-                    "Escolha uma UF para consultar o resultado presidencial.",
+                    "Escolha uma UF para selecionar o cargo.",
                     parse_mode=ParseMode.HTML,
                     reply_markup=states_keyboard(),
                 )
