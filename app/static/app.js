@@ -198,7 +198,7 @@ function setSummaryLabels(labels,values){
   for(let i=0;i<5;i++){
     qs(valueIds[i]).textContent=values[i]??'0%';
     qs(labelIds[i]).textContent=labels[i]||'—';
-    const sw=qs(\`#summarySwatch\${i+1}\`);if(sw)sw.style.background=colors[i];
+    const sw=qs(`#summarySwatch${i+1}`);if(sw)sw.style.background=colors[i];
   }
 }
 function renderPollSummary(poll){
@@ -210,7 +210,7 @@ function renderPollSummary(poll){
   const labels=candidates.map(c=>c?.ballot_name||'—');
   setGauge(...values);
   qs('#summaryModeTitle').textContent='PESQUISA';
-  qs('#totalVotes').textContent=hasPoll?\`\${poll.institute||'Pesquisa'} · \${poll.latest_date||''}\`:'0%';
+  qs('#totalVotes').textContent=hasPoll?`${poll.institute||'Pesquisa'} · ${poll.latest_date||''}`:'0%';
   qs('#summaryShareLabel').textContent='Maior intenção de voto';
   qs('#validShare').textContent=pct(Math.max(0,...values));
   setSummaryLabels(labels,values.map(v=>pct(v)));
@@ -225,28 +225,28 @@ function renderOfficialSummary(d){
   const blankPct=total?Number(d.blank_votes||0)/total*100:0;
   setGauge(validPct,voidPct,subPct,nullPct,blankPct);
   qs('#summaryModeTitle').textContent='VOTAÇÃO';
-  qs('#totalVotes').textContent=\`\${fmt(total)} votos\`;
+  qs('#totalVotes').textContent=`${fmt(total)} votos`;
   qs('#summaryShareLabel').textContent='Votos a candidatos concorrentes';
   qs('#validShare').textContent=pct(validPct);
   setSummaryLabels(['Votos válidos','Anulados','Sub judice','Nulos','Em branco'],[fmt(d.valid_votes),fmt(d.void_votes),fmt(d.void_sub_judice_votes),fmt(d.null_votes),fmt(d.blank_votes)]);
 }
 function renderSummaryFromState(){
-  const context=\`\${state.office}:\${state.scope}\`;
+  const context=`${state.office}:${state.scope}`;
   if(state.result&&state.resultContext===context)renderOfficialSummary(state.result);
   else renderPollSummary(state.pollContext===context?state.poll:null);
 }
 function renderSummary(){renderSummaryFromState()}
 function openAnalysis(){
-  const context=\`\${state.office}:\${state.scope}\`;
+  const context=`${state.office}:${state.scope}`;
   const official=!!(state.result&&state.resultContext===context);
   const d=state.result,directory=state.directory,poll=state.pollContext===context?state.poll:null;
-  qs('#analysisPlace').textContent=\`● \${states[state.scope]||state.scope.toUpperCase()} · \${officeLabels[state.office]}\`;
+  qs('#analysisPlace').textContent=`● ${states[state.scope]||state.scope.toUpperCase()} · ${officeLabels[state.office]}`;
   let arr=[];
   if(official){
     qs('#analysisDistributionTitle').textContent='Distribuição dos votos';
     qs('#analysisStatsTitle').textContent='Estatísticas da eleição';
-    qs('#eligibleText').textContent=\`\${fmt(d.electorate_total)} eleitores aptos\`;
-    qs('#participationLabel').textContent=\`Participação: \${pct(d.turnout_pct)}\`;
+    qs('#eligibleText').textContent=`${fmt(d.electorate_total)} eleitores aptos`;
+    qs('#participationLabel').textContent=`Participação: ${pct(d.turnout_pct)}`;
     qs('#participationBar').style.width=Math.min(100,Number(d.turnout_pct||0))+'%';
     const total=Number(d.total_votes||0)||1;
     const stats=[
@@ -255,7 +255,7 @@ function openAnalysis(){
       ['Votos nulos',fmt(d.null_votes),pct(Number(d.null_votes||0)/total*100),'#ef5045'],
       ['Abstenções',fmt(d.abstention),pct(d.abstention_pct),'#f59c32']
     ];
-    qs('#analysisStats').innerHTML=stats.map(s=>\`<div class="statbox"><small><i class="legend-dot" style="background:\${s[3]}"></i>\${s[0]}</small><strong>\${s[1]}</strong><em>\${s[2]}</em></div>\`).join('');
+    qs('#analysisStats').innerHTML=stats.map(s=>`<div class="statbox"><small><i class="legend-dot" style="background:${s[3]}"></i>${s[0]}</small><strong>${s[1]}</strong><em>${s[2]}</em></div>`).join('');
     qs('#analysisSourceNote').innerHTML='<span>ⓘ</span><span>Dados de apuração reproduzidos da fonte oficial configurada.</span>';
     arr=(d.candidates||[]).slice(0,8).map(c=>({ballot_name:c.ballot_name,estimate_percentage:Number(c.percentage||0)}));
   }else{
@@ -265,28 +265,28 @@ function openAnalysis(){
     const all=(directory?.candidates||[]).slice().sort((a,b)=>Number(b.estimate_percentage||0)-Number(a.estimate_percentage||0));
     arr=all.slice(0,8).map(c=>({ballot_name:c.ballot_name,estimate_percentage:Number(c.estimate_percentage||0)}));
     const max=Math.max(0,...arr.map(c=>Number(c.estimate_percentage||0)));
-    qs('#eligibleText').textContent=hasPoll&&poll.sample_size?\`\${fmt(poll.sample_size)} entrevistas\`:'Sem pesquisa disponível para este cargo/local';
-    qs('#participationLabel').textContent=\`Maior percentual: \${pct(max)}\`;
+    qs('#eligibleText').textContent=hasPoll&&poll.sample_size?`${fmt(poll.sample_size)} entrevistas`:'Sem pesquisa disponível para este cargo/local';
+    qs('#participationLabel').textContent=`Maior percentual: ${pct(max)}`;
     qs('#participationBar').style.width=Math.min(100,max)+'%';
-    const margin=poll?.margin_error_points!=null?\`±\${String(poll.margin_error_points).replace('.',',')} p.p.\`:'—';
+    const margin=poll?.margin_error_points!=null?`±${String(poll.margin_error_points).replace('.',',')} p.p.`:'—';
     const stats=[
       ['Instituto',poll?.institute||'—',poll?.latest_date||'—','#3d7df6'],
       ['Margem de erro',margin,poll?.field_period||'—','#65c66b'],
       ['Candidaturas',fmt(directory?.count||0),officeLabels[state.office],'#f59c32'],
       ['Dados disponíveis',hasPoll?'Sim':'Não',hasPoll?'Pesquisa':'0%','#9a58dc']
     ];
-    qs('#analysisStats').innerHTML=stats.map(s=>\`<div class="statbox"><small><i class="legend-dot" style="background:\${s[3]}"></i>\${s[0]}</small><strong>\${esc(s[1])}</strong><em>\${esc(s[2])}</em></div>\`).join('');
+    qs('#analysisStats').innerHTML=stats.map(s=>`<div class="statbox"><small><i class="legend-dot" style="background:${s[3]}"></i>${s[0]}</small><strong>${esc(s[1])}</strong><em>${esc(s[2])}</em></div>`).join('');
     qs('#analysisSourceNote').innerHTML=hasPoll?'<span>ⓘ</span><span>Pesquisa de intenção de voto — não é apuração.</span>':'<span>ⓘ</span><span>Sem pesquisa integrada para este cargo/local; percentuais exibidos como 0%.</span>';
   }
   const sum=arr.reduce((a,c)=>a+Number(c.estimate_percentage||0),0);
   if(sum>0){
     let cursor=0,parts=[];
-    arr.forEach((c,i)=>{const share=Number(c.estimate_percentage||0)/sum*100;parts.push(\`\${palette[i%palette.length]} \${cursor}% \${cursor+share}%\`);cursor+=share});
-    qs('#candidateDonut').style.background=\`conic-gradient(\${parts.join(',')})\`;
+    arr.forEach((c,i)=>{const share=Number(c.estimate_percentage||0)/sum*100;parts.push(`${palette[i%palette.length]} ${cursor}% ${cursor+share}%`);cursor+=share});
+    qs('#candidateDonut').style.background=`conic-gradient(${parts.join(',')})`;
   }else{
     qs('#candidateDonut').style.background='#252d38';
   }
-  qs('#donutLegend').innerHTML=arr.map((c,i)=>\`<div class="legend-item"><b><i class="legend-dot" style="background:\${palette[i%palette.length]}"></i>\${esc(c.ballot_name)}</b><span>\${pct(c.estimate_percentage)}</span></div>\`).join('')||'<div class="muted">Sem dados disponíveis.</div>';
+  qs('#donutLegend').innerHTML=arr.map((c,i)=>`<div class="legend-item"><b><i class="legend-dot" style="background:${palette[i%palette.length]}"></i>${esc(c.ballot_name)}</b><span>${pct(c.estimate_percentage)}</span></div>`).join('')||'<div class="muted">Sem dados disponíveis.</div>';
   openFull('#analysisModal');
 }
 
