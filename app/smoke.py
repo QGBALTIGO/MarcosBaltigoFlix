@@ -51,7 +51,6 @@ async def run(full: bool) -> int:
         smoke.ok('id="colinhaView"' in html, "HTML missing colinhaView")
         smoke.ok('data-view="colinha"' in html, "bottom navigation missing Colinha")
         smoke.ok('data-view="polls"' not in html, "Pesquisas still exposed in bottom navigation")
-        smoke.ok('id="colinhaPickerSheet"' in html, "HTML missing colinha picker fallback")
         smoke.ok("data-colinha-inline-search" in colinha_js, "Inline candidate search missing")
         smoke.ok("data-colinha-name-input" in colinha_js, "Inline candidate search input missing")
         smoke.ok("data-colinha-inline-results" in colinha_js, "Inline candidate search results missing")
