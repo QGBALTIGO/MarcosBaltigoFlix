@@ -241,6 +241,9 @@ body.keyboard-open .colinha-sticky-actions{
   overflow:hidden;
   padding:0;
 }
+body.tg-fullscreen .urna-fullscreen{
+  padding:0;
+}
 .urna-wrap{
   width:min(760px,100%);
   height:var(--tg-stable-height);
