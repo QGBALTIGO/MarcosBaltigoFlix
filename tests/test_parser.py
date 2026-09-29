@@ -52,3 +52,18 @@ def test_math_definition_is_preserved():
     data["md"] = "s"
     r = parse_ea20(data, "br")
     assert r.mathematically_defined == "s"
+
+
+def test_parse_ea20_orders_live_candidates_by_percentage_then_votes():
+    data = fixture()
+    candidates = data["carg"][0]["agr"][0]["par"]
+    first = candidates[0]["cand"][0]
+    second = candidates[1]["cand"][0]
+
+    first["pvap"] = 50.0
+    first["vap"] = 500
+    second["pvap"] = 50.0
+    second["vap"] = 650
+
+    result = parse_ea20(data, "br")
+    assert [candidate.ballot_name for candidate in result.candidates] == ["B", "A"]
