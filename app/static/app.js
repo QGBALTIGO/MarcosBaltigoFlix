@@ -173,7 +173,7 @@ async function loadResults(){
   }
 }
 
-function candidateEstimateText(c){return c.estimate_percentage==null?'—':pct(c.estimate_percentage)}
+function candidateEstimateText(c){return pct(Number(c.estimate_percentage||0))}
 function renderRealCandidates(){
   const directory=state.directory;if(!directory)return;
   const query=norm(state.candidateQuery);
@@ -184,7 +184,7 @@ function renderRealCandidates(){
     html+=hero.map((c,i)=>`<article class="card candidate-card candidate-hero animate" data-real-candidate="${i}"><div class="candidate-main">${avatarHtml(c.ballot_name,c.photo)}<div><div class="cand-name">${esc(c.ballot_name)}</div><div class="cand-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="estimate-badge">${esc(directory.estimate.institute||'Pesquisa')} · ${esc(directory.estimate.date||'')}</div></div><div class="cand-pct">${candidateEstimateText(c)}</div></div><div class="progress"><i style="width:${Math.max(0,Math.min(100,Number(c.estimate_percentage||0)))}%"></i></div><div class="cand-votes">Intenção de voto · não é apuração</div></article>`).join('');
     html+=rest.map((c,idx)=>`<article class="candidate-row real animate" data-real-candidate="${idx+2}">${avatarHtml(c.ballot_name,c.photo,'mini-avatar')}<div><div class="row-name">${esc(c.ballot_name)}</div><div class="row-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="row-bar"><i style="width:${Math.max(0,Math.min(100,Number(c.estimate_percentage||0)))}%"></i></div></div><div class="row-pct">${candidateEstimateText(c)}</div></article>`).join('');
   }else{
-    html=visible.map((c,i)=>`<article class="candidate-row real animate" data-real-candidate="${i}">${avatarHtml(c.ballot_name,c.photo,'mini-avatar')}<div><div class="row-name">${esc(c.ballot_name)}</div><div class="row-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="no-estimate">${esc(c.occupation||c.party_name||'Candidatura registrada')}</div></div><div class="row-pct">—</div></article>`).join('');
+    html=visible.map((c,i)=>`<article class="candidate-row real animate" data-real-candidate="${i}">${avatarHtml(c.ballot_name,c.photo,'mini-avatar')}<div><div class="row-name">${esc(c.ballot_name)}</div><div class="row-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="no-estimate">${esc(c.occupation||c.party_name||'Candidatura registrada')}</div></div><div class="row-pct">0%</div></article>`).join('');
   }
   qs('#candidateArea').innerHTML=html||'<div class="card coming"><b>Nenhuma candidatura encontrada</b><br>Tente outro termo de busca.</div>';
   qsa('[data-real-candidate]').forEach(el=>el.onclick=()=>openCandidate(visible[Number(el.dataset.realCandidate)],{office:state.office,scope:state.scope}));
@@ -293,7 +293,7 @@ function openAnalysis(){
 function openCandidate(c,context={office:state.office,scope:state.scope}){
   if(!c)return;state.selectedCandidate=c;state.detailContext=context;
   qs('#detailOffice').textContent=officeLabels[context.office]||c.office||'Candidato';qs('#detailPhotoWrap').innerHTML=avatarHtml(c.ballot_name,c.photo,'detail-photo');qs('#detailNumber').textContent=c.number||'—';qs('#detailName').textContent=c.ballot_name||'—';qs('#detailParty').textContent=[c.party,c.party_name].filter(Boolean).join(' · ')||'Partido não informado';qs('#detailPlace').textContent=states[context.scope]||String(context.scope||'').toUpperCase();qs('#detailHeart').classList.toggle('active',isFavorite(c));qs('#detailHeart').textContent=isFavorite(c)?'♥':'♡';qs('#detailStatus').style.display='none';
-  const estimate=c.estimate_percentage==null?'Sem pesquisa disponível':pct(c.estimate_percentage);
+  const estimate=pct(Number(c.estimate_percentage||0));
   qs('#detailResult').innerHTML=`<div class="info-stat"><small>Pesquisa</small><b>${esc(estimate)}</b></div><div class="info-stat"><small>Número</small><b>${esc(c.number||'—')}</b></div><div class="info-stat"><small>Partido</small><b>${esc(c.party||'—')}</b></div><div class="info-stat"><small>Cargo</small><b>${esc(officeLabels[context.office]||c.office||'—')}</b></div>`;qs('#viceSection').style.display='none';fillCandidateDetail(c);openFull('#candidateModal');loadCandidateDetail(c,context);
 }
 function renderFinance(c){
