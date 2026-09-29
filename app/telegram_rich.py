@@ -347,6 +347,28 @@ def _state_result_page(
     return result.candidates[start:start + page_size], page, pages
 
 
+def build_state_inline_menu_rich_html(scope: str) -> str:
+    """Build the message inserted when a user chooses a state in inline mode."""
+    scope = scope.lower()
+    place = UF_NAMES.get(scope, scope.upper())
+    state_office = "Deputado Distrital" if scope == "df" else "Deputado Estadual"
+
+    return "".join([
+        f"<h2>{html.escape(place)}</h2>",
+        "<p><b>Eleições 2026 • Apuração</b></p>",
+        "<p>Escolha o cargo que deseja consultar neste estado.</p>",
+        '<tg-button-row align="center">',
+        f'<tg-button type="callback_data" data="state:open:{scope}:federal:0">Deputado Federal</tg-button>',
+        f'<tg-button type="callback_data" data="state:open:{scope}:estadual:0">{state_office}</tg-button>',
+        "</tg-button-row>",
+        '<tg-button-row align="center">',
+        f'<tg-button type="callback_data" data="state:open:{scope}:senador:0">Senador</tg-button>',
+        f'<tg-button type="callback_data" data="state:open:{scope}:governador:0">Governador</tg-button>',
+        "</tg-button-row>",
+        "<footer>Apuração reproduzida a partir dos dados oficiais do TSE.</footer>",
+    ])
+
+
 def build_state_office_result_rich_html(
     result: ElectionResult,
     *,
@@ -446,7 +468,13 @@ def build_state_office_result_rich_html(
             "</tg-button-row>"
         )
 
-    if not shared:
+    if shared:
+        buttons += (
+            '<tg-button-row align="center">'
+            f'<tg-button type="callback_data" data="state:{scope}">⬅️ Cargos</tg-button>'
+            "</tg-button-row>"
+        )
+    else:
         buttons += (
             '<tg-button-row align="center">'
             f'<tg-button type="callback_data" data="state:{scope}">⬅️ Voltar</tg-button>'
@@ -539,6 +567,45 @@ async def edit_rich_html(
     )
 
 
+async def answer_inline_rich_results(
+    *,
+    token: str,
+    inline_query_id: str,
+    results: list[dict[str, str]],
+    cache_time: int = 0,
+    is_personal: bool = False,
+) -> Any:
+    articles: list[dict[str, Any]] = []
+    for item in results:
+        article: dict[str, Any] = {
+            "type": "article",
+            "id": item["result_id"],
+            "title": item["title"],
+            "description": item["description"],
+            "input_message_content": {
+                "rich_message": {
+                    "html": item["rich_html"],
+                    "skip_entity_detection": True,
+                }
+            },
+        }
+        thumbnail_url = item.get("thumbnail_url", "").strip()
+        if thumbnail_url:
+            article["thumbnail_url"] = thumbnail_url
+        articles.append(article)
+
+    return await _bot_api_post(
+        token=token,
+        method="answerInlineQuery",
+        payload={
+            "inline_query_id": inline_query_id,
+            "results": articles,
+            "cache_time": max(0, int(cache_time)),
+            "is_personal": bool(is_personal),
+        },
+    )
+
+
 async def answer_inline_rich_query(
     *,
     token: str,
@@ -547,29 +614,18 @@ async def answer_inline_rich_query(
     result_id: str,
     title: str,
     description: str,
+    thumbnail_url: str = "",
 ) -> Any:
-    return await _bot_api_post(
+    return await answer_inline_rich_results(
         token=token,
-        method="answerInlineQuery",
-        payload={
-            "inline_query_id": inline_query_id,
-            "results": [
-                {
-                    "type": "article",
-                    "id": result_id,
-                    "title": title,
-                    "description": description,
-                    "input_message_content": {
-                        "rich_message": {
-                            "html": rich_html,
-                            "skip_entity_detection": True,
-                        }
-                    },
-                }
-            ],
-            "cache_time": 0,
-            "is_personal": False,
-        },
+        inline_query_id=inline_query_id,
+        results=[{
+            "rich_html": rich_html,
+            "result_id": result_id,
+            "title": title,
+            "description": description,
+            "thumbnail_url": thumbnail_url,
+        }],
     )
 
 
