@@ -319,29 +319,41 @@ function renderPollSummary(poll){
 }
 function renderZeroSummary(){
   const card=qs('#summaryCard');card.style.display='block';card.classList.add('official-mode');card.classList.remove('poll-mode');
-  const candidates=(state.directory?.candidates||[]).slice(0,5);
-  const labels=candidates.map(c=>c.ballot_name||'—');
-  while(labels.length<5)labels.push('—');
   setGauge(0,0,0,0,0);
-  qs('#summaryModeTitle').textContent='APURAÇÃO';
-  qs('#totalVotes').textContent='0 votos';
-  qs('#summaryShareLabel').textContent='Maior percentual';
-  qs('#validShare').textContent='0%';
-  setSummaryLabels(labels,['0%','0%','0%','0%','0%']);
+  qs('#summaryModeTitle').textContent='VOTAÇÃO';
+  qs('#totalVotes').textContent='— votos';
+  qs('#summaryShareLabel').textContent='Votos a candidatos concorrentes';
+  qs('#validShare').textContent='—';
+  setSummaryLabels(
+    ['Votos válidos','Anulados','Sub judice','Nulos','Em branco'],
+    ['—','—','—','—','—'],
+    ['#3569a8','#ef5045','#f59c32','#8d73d1','#e593ae']
+  );
 }
 function renderOfficialSummary(d){
   const card=qs('#summaryCard');card.style.display='block';card.classList.add('official-mode');card.classList.remove('poll-mode');
-  const candidates=(d.candidates||[]).slice(0,5);
-  while(candidates.length<5)candidates.push(null);
-  const values=candidates.map(c=>Number(c?.percentage||0));
-  const labels=candidates.map(c=>c?.ballot_name||'—');
-  const total=Number(d.total_votes||0);
-  setGauge(...values);
-  qs('#summaryModeTitle').textContent='APURAÇÃO';
-  qs('#totalVotes').textContent=`${fmt(total)} votos`;
-  qs('#summaryShareLabel').textContent='Maior percentual';
-  qs('#validShare').textContent=pct(Math.max(0,...values));
-  setSummaryLabels(labels,values.map(v=>pct(v)));
+  const total=Math.max(0,Number(d.total_votes||0));
+  const counts=[
+    Math.max(0,Number(d.valid_votes||0)),
+    Math.max(0,Number(d.void_votes||0)),
+    Math.max(0,Number(d.void_sub_judice_votes||0)),
+    Math.max(0,Number(d.null_votes||0)),
+    Math.max(0,Number(d.blank_votes||0))
+  ];
+  const percentages=counts.map(value=>total>0?(value/total*100):0);
+  const candidateVotes=(d.candidates||[]).reduce((sum,candidate)=>sum+Math.max(0,Number(candidate?.votes||0)),0);
+  const candidateShare=total>0?(candidateVotes/total*100):0;
+
+  setGauge(...percentages);
+  qs('#summaryModeTitle').textContent='VOTAÇÃO';
+  qs('#totalVotes').textContent=total>0?`${fmt(total)} votos`:'— votos';
+  qs('#summaryShareLabel').textContent='Votos a candidatos concorrentes';
+  qs('#validShare').textContent=total>0?pct(candidateShare):'—';
+  setSummaryLabels(
+    ['Votos válidos','Anulados','Sub judice','Nulos','Em branco'],
+    total>0?percentages.map(value=>pct(value)):['—','—','—','—','—'],
+    ['#3569a8','#ef5045','#f59c32','#8d73d1','#e593ae']
+  );
 }
 function renderSummaryFromState(){
   const context=`${state.office}:${state.scope}`;
