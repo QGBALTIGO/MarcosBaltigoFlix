@@ -7,7 +7,7 @@
 <meta name="color-scheme" content="dark">
 <title>Resultado Eleições 2026</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>\n<link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>\n<link rel="preconnect" href="https://flagcdn.com" crossorigin>\n<link rel="preconnect" href="https://especiaisg1.globo">
-<link rel="stylesheet" href="/static/app.css?v=20260929-7">
+<link rel="stylesheet" href="/static/app.css?v=20260929-9">
 </head>
 <body>
 <div class="app">
@@ -129,6 +129,18 @@
   </div>
 </section>
 
-<script src="/static/app.js?v=20260929-7"></script>
+<script>
+(function(){
+  function showFatal(message){
+    var box=document.getElementById('candidateArea');
+    if(!box)return;
+    var safe=String(message||'Erro inesperado').replace(/[<>]/g,'');
+    box.innerHTML='<div class="card coming"><b>Não foi possível iniciar o painel.</b><br>Toque em atualizar ou feche e abra novamente.<br><small style="opacity:.65">'+safe+'</small></div>';
+  }
+  window.addEventListener('error',function(e){showFatal(e.message)});
+  window.addEventListener('unhandledrejection',function(e){var r=e.reason;showFatal(r&&r.message?r.message:r)});
+})();
+</script>
+<script src="/static/app.js?v=20260929-9"></script>
 </body>
 </html>

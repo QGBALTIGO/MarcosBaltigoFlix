@@ -50,8 +50,6 @@ async def run(full: bool) -> int:
         smoke.ok("/api/candidates?office=" in js, "JS missing candidate API")
         smoke.ok("$('.nav-btn').forEach" in js, "nav buttons are not using querySelectorAll")
         smoke.ok("$('.chip').forEach" in js, "office chips are not using querySelectorAll")
-        smoke.ok("$('.nav-btn').forEach" in js and "$('.nav-btn').forEach" not in js.replace("$('.nav-btn').forEach", ""), "broken nav querySelector pattern present")
-        smoke.ok("$('.chip').forEach" in js and "$('.chip').forEach" not in js.replace("$('.chip').forEach", ""), "broken chip querySelector pattern present")
         smoke.ok("loadResults();" in js, "JS never starts result loading")
         smoke.ok("function requireStateForOffice" in js, "state requirement helper missing")
         smoke.ok("setActiveOffice('presidente')" in js, "Brazil does not initialize on president")
@@ -74,6 +72,30 @@ async def run(full: bool) -> int:
         smoke.ok(".candidate-search" in css, "candidate search CSS missing")
         smoke.ok(".bottom-nav" in css, "bottom navigation CSS missing")
         smoke.ok("gaugeVoid" in html and "gaugeSubJudice" in html, "five-segment gauge missing")
+
+        # Reject querySelector() used as if it returned a collection.
+        bad_collection_calls = []
+        collection_pattern = re.compile(
+            r"(?<!\$)\$\([^\n;]*?\)\.(?:forEach|map|filter|find|some|every|reduce)\b"
+        )
+        for match in collection_pattern.finditer(js):
+            bad_collection_calls.append(match.group(0))
+        smoke.ok(
+            not bad_collection_calls,
+            "querySelector used as a collection: " + ", ".join(bad_collection_calls[:10]),
+        )
+        smoke.ok("$('[data-close]').forEach" in js, "location sheet X is not wired")
+        smoke.ok("$('[data-full-close]').forEach" in js, "fullscreen X buttons are not wired")
+        smoke.ok("$('#stateList').addEventListener('click'" in js, "state list click delegation missing")
+        smoke.ok("$('.nav-btn').forEach" in js, "bottom navigation click binding missing")
+        smoke.ok("$('.chip').forEach" in js, "office chip click binding missing")
+        smoke.ok("$('#refreshBtn').onclick" in js, "refresh click binding missing")
+        smoke.ok("$('#candidateSearch').oninput" in js, "candidate search binding missing")
+        smoke.ok("$('#candidateMore').onclick" in js, "candidate pagination binding missing")
+        smoke.ok("$('#pollOffice').onchange" in js, "poll office binding missing")
+        smoke.ok("$('#pollInstitute').onchange" in js, "poll institute binding missing")
+        smoke.ok("$('#pollQuestion').onchange" in js, "poll question binding missing")
+        smoke.ok("$('#pollStratum').onchange" in js, "poll stratum binding missing")
 
         # 2) Real candidate source in every UF and office.
         # First pass does network I/O. Repeated passes hit in-process cache and exercise parsing/render data.
