@@ -16,7 +16,7 @@ let savedScope=localStorage.getItem('election_scope')||'br';
 if(!states[savedScope])savedScope='br';
 let state={
   scope:savedScope,office:'presidente',result:null,poll:null,selectedCandidate:null,catalog:null,
-  directory:null,candidateLimit:24,candidateQuery:'',pendingOffice:null,pendingPollOffice:null,
+  directory:null,directoryContext:null,candidateLimit:24,candidateQuery:'',pendingOffice:null,pendingPollOffice:null,
   detailContext:null,requestSeq:0,pollContext:null
 };
 
@@ -61,6 +61,7 @@ function requireStateForOffice(office,kind='results'){
 
 function applyDirectory(directory,fromCache=false){
   state.directory=directory;
+  state.directoryContext=`${state.office}:${state.scope}`;
   $('#locationName').textContent=states[state.scope]||state.scope.toUpperCase();
   $('#officeTitle').textContent=officeLabels[state.office];
   $('#sectionsInfo').textContent=`${directory.count||0} candidaturas`;
@@ -185,7 +186,7 @@ function renderFavorites(){
 }
 function showView(name){
   $('#resultsView').hidden=name!=='results';$('#pollsView').hidden=name!=='polls';$('#favoritesView').hidden=name!=='favorites';$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
-  if(name==='polls'){if(state.scope==='br')$('#pollOffice').value='presidente';loadPoll(true)}else if(name==='favorites')renderFavorites();else if(name==='results'&&!state.directory)loadResults();
+  if(name==='polls'){if(state.scope==='br')$('#pollOffice').value='presidente';loadPoll(true)}else if(name==='favorites')renderFavorites();else if(name==='results'&&state.directoryContext!==`${state.office}:${state.scope}`)loadResults();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
