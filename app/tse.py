@@ -104,8 +104,16 @@ def parse_ea20(
             )
         )
 
-    # A ordem por votos é apenas apresentação do dado objetivo da apuração.
-    candidates.sort(key=lambda item: (-item.votes, item.sequence or 9999, item.number or 999))
+    # Durante a apuração, a apresentação acompanha o resultado oficial:
+    # maior percentual, depois maior número de votos; empates ficam estáveis por nome/número.
+    candidates.sort(
+        key=lambda item: (
+            -float(item.percentage or 0),
+            -int(item.votes or 0),
+            (item.ballot_name or item.name or "").casefold(),
+            item.number if item.number is not None else 999999,
+        )
+    )
 
     s = data.get("s") or {}
     e = data.get("e") or {}
