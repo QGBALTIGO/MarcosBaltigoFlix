@@ -51,6 +51,16 @@ class Storage:
                 )
                 """
             )
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS bot_users (
+                    user_id INTEGER PRIMARY KEY,
+                    first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    interactions INTEGER NOT NULL DEFAULT 1
+                )
+                """
+            )
             # Migração idempotente para instalações criadas por versões anteriores.
             for sql in (
                 "ALTER TABLE live_messages ADD COLUMN alerts INTEGER NOT NULL DEFAULT 1",
@@ -127,6 +137,34 @@ class Storage:
                 )
                 for r in rows
             ]
+
+    async def record_user(self, user_id: int) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT INTO bot_users(user_id, first_seen_at, last_seen_at, interactions)
+                VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    last_seen_at=CURRENT_TIMESTAMP,
+                    interactions=bot_users.interactions + 1
+                """,
+                (int(user_id),),
+            )
+            await db.commit()
+
+    async def count_users(self) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute("SELECT COUNT(*) FROM bot_users")
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+
+    async def list_user_ids(self) -> list[int]:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                "SELECT user_id FROM bot_users ORDER BY first_seen_at ASC, user_id ASC"
+            )
+            rows = await cursor.fetchall()
+            return [int(row[0]) for row in rows]
 
     async def get_state(self, key: str) -> str | None:
         async with aiosqlite.connect(self.path) as db:
