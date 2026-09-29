@@ -165,6 +165,13 @@
         '<div class="colinha-match" data-colinha-match="'+slot.key+'"></div>'+
       '</div>'+
       '<button class="colinha-name-search" type="button" data-colinha-search="'+slot.key+'">Busque pelo nome</button>'+
+      '<div class="colinha-inline-search" data-colinha-inline-search="'+slot.key+'" hidden>'+
+        '<label class="colinha-inline-search-box">'+
+          '<span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg></span>'+
+          '<input type="search" data-colinha-name-input="'+slot.key+'" placeholder="Nome do candidato..." autocomplete="off" autocapitalize="words" aria-label="Buscar candidatura para '+esc(slotLabel(slot))+'">'+
+        '</label>'+
+        '<div class="colinha-inline-results" data-colinha-inline-results="'+slot.key+'"></div>'+
+      '</div>'+
       '<div class="colinha-warning" data-colinha-warning="'+slot.key+'" hidden></div>'+
     '</article>';
   }
@@ -291,40 +298,60 @@
     var slot=SLOT_BY_KEY[key];
     if(!slot)return;
     if(state.scope==='br'&&slot.office!=='presidente'){
-      qs('#locationTrigger').click();
+      openColinhaStatePicker();
       return;
     }
     cstate.pickerSlot=key;
-    qs('#colinhaPickerTitle').textContent='Escolher · '+slotLabel(slot);
-    qs('#colinhaPickerSearch').value='';
-    qs('#colinhaPickerList').innerHTML='<div class="colinha-picker-empty">Carregando candidaturas…</div>';
-    openSheet('#colinhaPickerSheet');
+    var card=qs('[data-colinha-slot="'+key+'"]');
+    if(!card)return;
+    var panel=card.querySelector('[data-colinha-inline-search]');
+    var input=card.querySelector('[data-colinha-name-input]');
+    var root=card.querySelector('[data-colinha-inline-results]');
+    var trigger=card.querySelector('[data-colinha-search]');
+    if(!panel||!input||!root)return;
+    panel.hidden=false;
+    if(trigger)trigger.hidden=true;
+    input.value='';
+    root.innerHTML='<div class="colinha-inline-status">Carregando candidaturas…</div>';
     var loaded=true;
     try{await fetchDirectory(slot.office,scopeFor(slot),false)}catch(e){loaded=false}
     if(cstate.pickerSlot!==key)return;
     if(!loaded){
-      qs('#colinhaPickerList').innerHTML='<div class="colinha-picker-empty">Não foi possível carregar as candidaturas agora. Feche esta janela, atualize a colinha e tente novamente.</div>';
+      root.innerHTML='<div class="colinha-inline-status error">Não foi possível carregar as candidaturas agora. Atualize a colinha e tente novamente.</div>';
       return;
     }
-    renderPicker('');
-    setTimeout(function(){try{qs('#colinhaPickerSearch').focus()}catch(e){}},220);
+    root.innerHTML='';
+    setTimeout(function(){
+      try{
+        input.focus({preventScroll:true});
+        card.scrollIntoView({block:'center',behavior:'smooth'});
+      }catch(e){}
+    },80);
   }
   function renderPicker(query){
-    var slot=SLOT_BY_KEY[cstate.pickerSlot];
+    var key=cstate.pickerSlot;
+    var slot=SLOT_BY_KEY[key];
     if(!slot)return;
+    var card=qs('[data-colinha-slot="'+key+'"]');
+    if(!card)return;
+    var root=card.querySelector('[data-colinha-inline-results]');
+    if(!root)return;
     var q=norm(query||'');
+    if(!q){
+      cstate.pickerResults=[];
+      root.innerHTML='';
+      return;
+    }
     var list=candidatesFor(slot).filter(function(c){
-      if(!q)return true;
       return [c.ballot_name,c.name,c.number,c.party,c.party_name].some(function(v){return norm(v).indexOf(q)>=0});
-    }).slice(0,100);
+    }).slice(0,24);
     cstate.pickerResults=list;
-    var root=qs('#colinhaPickerList');
     if(!list.length){
-      root.innerHTML='<div class="colinha-picker-empty">Nenhuma candidatura encontrada para esta busca.</div>';
+      root.innerHTML='<div class="colinha-inline-status">Nenhuma candidatura encontrada.</div>';
       return;
     }
     root.innerHTML=list.map(function(c,i){
-      return '<button class="colinha-picker-item" type="button" data-colinha-pick="'+i+'">'+
+      return '<button class="colinha-inline-item" type="button" data-colinha-inline-pick="'+i+'">'+
         photoHtml(c,'colinha-picker-photo')+
         '<span class="colinha-picker-copy"><b>'+esc(candidateName(c))+'</b><small>'+esc(c.party||c.party_name||'')+'</small></span>'+
         '<span class="colinha-picker-num">'+esc(c.number||'')+'</span>'+
@@ -338,8 +365,18 @@
     if(!candidate||!slot)return;
     cstate.votes[key]=cleanNumber(candidate.number,slot.digits);
     persistVotes();
+    var card=qs('[data-colinha-slot="'+key+'"]');
+    if(card){
+      var panel=card.querySelector('[data-colinha-inline-search]');
+      var trigger=card.querySelector('[data-colinha-search]');
+      var input=card.querySelector('[data-colinha-name-input]');
+      if(panel)panel.hidden=true;
+      if(trigger)trigger.hidden=false;
+      if(input)input.blur();
+    }
+    cstate.pickerSlot=null;
+    cstate.pickerResults=[];
     updateCard(key);
-    closeSheets();
     toast(candidateName(candidate)+' adicionado à colinha.');
   }
   function toast(message){
@@ -822,13 +859,13 @@
   qs('#colinhaTrain').onclick=startUrna;
   qs('#colinhaSaveImage').onclick=function(e){saveImage(e.currentTarget)};
   qs('#colinhaShare').onclick=function(e){shareImage(e.currentTarget)};
-  qs('#colinhaPickerSearch').oninput=function(e){renderPicker(e.target.value)};
-  qs('#colinhaPickerList').onclick=function(e){
-    var item=e.target.closest('[data-colinha-pick]');
-    if(item)choosePicker(Number(item.dataset.colinhaPick));
-  };
-
   qs('#colinhaCards').addEventListener('input',function(e){
+    var nameInput=e.target.closest('[data-colinha-name-input]');
+    if(nameInput){
+      cstate.pickerSlot=nameInput.dataset.colinhaNameInput;
+      renderPicker(nameInput.value);
+      return;
+    }
     var input=e.target.closest('[data-colinha-input]');
     if(!input)return;
     var key=input.dataset.colinhaInput;
@@ -842,7 +879,7 @@
   function syncKeyboardState(){
     var vv=window.visualViewport;
     var active=document.activeElement;
-    var colinhaInput=active&&active.matches&&active.matches('[data-colinha-input]');
+    var colinhaInput=active&&active.matches&&active.matches('[data-colinha-input],[data-colinha-name-input]');
     var reduced=vv?vv.height<window.innerHeight-120:false;
     document.body.classList.toggle('keyboard-open',!!(colinhaInput&&reduced&&!qs('#colinhaView').hidden));
   }
@@ -874,6 +911,11 @@
       cstate.votes[key]='';
       persistVotes();
       updateCard(key);
+      return;
+    }
+    var pick=e.target.closest('[data-colinha-inline-pick]');
+    if(pick){
+      choosePicker(Number(pick.dataset.colinhaInlinePick));
       return;
     }
     var search=e.target.closest('[data-colinha-search]');
