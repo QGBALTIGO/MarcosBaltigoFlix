@@ -1,5 +1,6 @@
 from app.g1_polls import Discovery, parse_g1_payload
-from app.telegram_rich import build_g1_channel_rich_html
+from app.models import Candidate, ElectionResult
+from app.telegram_rich import build_g1_channel_rich_html, build_president_result_rich_html
 
 
 def _poll():
@@ -61,3 +62,119 @@ def test_rich_poll_uses_native_table_and_details():
     assert "<tg-button-row" in rich
     assert 'style="primary"' in rich
     assert "Indecisos" in rich
+
+
+
+def _president_result(*, pre_election: bool = True) -> ElectionResult:
+    return ElectionResult(
+        scope="br",
+        election_code=6257,
+        round=1,
+        phase="pre_election" if pre_election else "oficial",
+        generated_date="" if pre_election else "04/10/2026",
+        generated_time="" if pre_election else "17:10:00",
+        totalization_date="" if pre_election else "04/10/2026",
+        totalization_time="" if pre_election else "17:10:00",
+        generation_id="pre-election:presidente:br" if pre_election else "live",
+        disclosure_enabled=not pre_election,
+        final_totalization=False,
+        progress_status="Aguardando início da apuração oficial" if pre_election else "em andamento",
+        mathematically_defined="",
+        no_elected_assignment=False,
+        no_elected_reasons=[],
+        sections_total=0 if pre_election else 100,
+        sections_counted=0 if pre_election else 25,
+        sections_pending=0 if pre_election else 75,
+        sections_counted_pct=0.0 if pre_election else 25.0,
+        electorate_total=0 if pre_election else 1000,
+        turnout=0 if pre_election else 200,
+        turnout_pct=0.0 if pre_election else 20.0,
+        abstention=0 if pre_election else 800,
+        abstention_pct=0.0 if pre_election else 80.0,
+        total_votes=0 if pre_election else 200,
+        valid_votes=0 if pre_election else 190,
+        blank_votes=0 if pre_election else 4,
+        null_votes=0 if pre_election else 6,
+        void_votes=0,
+        void_sub_judice_votes=0,
+        candidates=[
+            Candidate(
+                number=13,
+                sequence=1,
+                candidate_id="1",
+                name="CANDIDATO UM",
+                ballot_name="CANDIDATO UM",
+                party="P13",
+                party_name="PARTIDO 13",
+                votes=0 if pre_election else 100,
+                percentage=0.0 if pre_election else 52.63,
+                percentage_exact=0.0 if pre_election else 52.63,
+                vote_destination="",
+                official_status="",
+                elected_flag=False,
+                vice_name="",
+                vice_party="",
+            ),
+            Candidate(
+                number=22,
+                sequence=2,
+                candidate_id="2",
+                name="CANDIDATO DOIS",
+                ballot_name="CANDIDATO DOIS",
+                party="P22",
+                party_name="PARTIDO 22",
+                votes=0 if pre_election else 90,
+                percentage=0.0 if pre_election else 47.37,
+                percentage_exact=0.0 if pre_election else 47.37,
+                vote_destination="",
+                official_status="",
+                elected_flag=False,
+                vice_name="",
+                vice_party="",
+            ),
+        ],
+    )
+
+
+def test_president_rich_uses_native_tables_and_only_requested_buttons():
+    rich = build_president_result_rich_html(
+        _president_result(),
+        panel_url="https://example.test/app",
+        panel_web_app=True,
+        shared=False,
+    )
+
+    assert "<table bordered striped compact>" in rich
+    assert "<caption>Resultado presidencial</caption>" in rich
+    assert "<caption>Totalização</caption>" in rich
+    assert "<b>CANDIDATO UM</b><br/>13 · P13" in rich
+    assert "<b>0%</b>" in rich
+    assert "Apuração ainda não iniciada" in rich
+
+    assert rich.count("<tg-button ") == 4
+    assert "🔄 Atualizar" in rich
+    assert "📊 Painel ao vivo" in rich
+    assert "⬅️ Voltar" in rich
+    assert "📤 Compartilhar" in rich
+    assert 'type="switch_inline_query_chosen_chat"' in rich
+    assert 'allow-user-chats allow-group-chats' in rich
+    assert "Fonte G1" not in rich
+    assert "Abrir resultados do TSE" not in rich
+
+
+def test_shared_president_rich_keeps_update_button_for_groups():
+    rich = build_president_result_rich_html(
+        _president_result(pre_election=False),
+        panel_url="https://t.me/ResultadoEleicoes_Bot?start=painel",
+        panel_web_app=False,
+        shared=True,
+    )
+
+    assert rich.count("<tg-button ") == 2
+    assert "🔄 Atualizar" in rich
+    assert 'data="president:refresh:br"' in rich
+    assert "📊 Painel ao vivo" in rich
+    assert "⬅️ Voltar" not in rich
+    assert "📤 Compartilhar" not in rich
+    assert "<b>52,63%</b>" in rich
+    assert "25%" in rich

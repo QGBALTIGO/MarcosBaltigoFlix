@@ -55,6 +55,15 @@ async def lifespan(app: FastAPI):
     tg_app = await election_bot.build()
     if tg_app:
         await tg_app.initialize()
+        try:
+            me = await tg_app.bot.get_me()
+            logging.getLogger(__name__).info(
+                "Telegram bot @%s inline_queries=%s",
+                me.username or "",
+                bool(getattr(me, "supports_inline_queries", False)),
+            )
+        except Exception:
+            logging.getLogger(__name__).exception("Falha verificando configuração inline do bot")
         await tg_app.start()
         if tg_app.updater:
             await tg_app.updater.start_polling(drop_pending_updates=False)
