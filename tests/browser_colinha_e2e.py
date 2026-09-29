@@ -628,17 +628,9 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
         page.wait_for_function("document.body.classList.contains('tg-fullscreen')", timeout=5_000)
         open_colinha(page)
 
-        # Simulate the visual viewport shrinking as a mobile keyboard opens.
-        page.locator('[data-colinha-input="governador"]').focus()
-        page.evaluate(
-            """
-            () => {
-              Object.defineProperty(window, 'innerHeight', {configurable:true, value:844});
-              window.dispatchEvent(new Event('resize'));
-              document.body.classList.add('keyboard-open');
-            }
-            """
-        )
+        # Validate the layout guard used when visualViewport reports a mobile keyboard.
+        # Detection itself is source-gated in app/smoke.py; here we verify the resulting CSS state.
+        page.evaluate("document.body.classList.add('keyboard-open')")
         body_class = page.locator("body").get_attribute("class") or ""
         assert "keyboard-open" in body_class, body_class
         page.wait_for_timeout(250)
@@ -647,7 +639,6 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
         assert float(nav_opacity) < 0.01, ("nav_opacity", nav_opacity, body_class)
         assert float(sticky_opacity) < 0.01, ("sticky_opacity", sticky_opacity, body_class)
 
-        page.locator('[data-colinha-input="governador"]').blur()
         page.evaluate("document.body.classList.remove('keyboard-open')")
         assert_no_horizontal_overflow(page)
         assert not errors, errors
