@@ -250,8 +250,8 @@ async function detectLocation(){
   if(!navigator.geolocation){updateGeoStatus('Localização não disponível neste navegador');return}
   btn.classList.remove('saved');btn.classList.add('detecting');title.textContent='Usar minha localização';small.textContent='Detectando…';
   navigator.geolocation.getCurrentPosition(async p=>{try{
-    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.coords.latitude}&lon=${p.coords.longitude}`,{headers:{'Accept-Language':'pt-BR'}}),d=await r.json(),code=String(d.address?.['ISO3166-2-lvl4']||d.address?.['ISO3166-2-lvl3']||'').split('-').pop().toLowerCase();
-    if(states[code]){btn.classList.remove('detecting');btn.classList.add('saved');title.textContent='Localização salva';small.textContent=states[code];selectState(code,'detected');return}
+    const r=await fetch(`/api/location/reverse?lat=${encodeURIComponent(p.coords.latitude)}&lon=${encodeURIComponent(p.coords.longitude)}`,{cache:'force-cache'}),d=await r.json(),code=String(d.uf||'').toLowerCase();
+    if(r.ok&&states[code]){btn.classList.remove('detecting');btn.classList.add('saved');title.textContent='Localização salva';small.textContent=states[code];selectState(code,'detected');return}
     updateGeoStatus('Estado não identificado');
   }catch(e){updateGeoStatus('Não foi possível identificar o estado')}},()=>updateGeoStatus('Permissão de localização não concedida'),{enableHighAccuracy:false,timeout:7000,maximumAge:3600000});
 }
