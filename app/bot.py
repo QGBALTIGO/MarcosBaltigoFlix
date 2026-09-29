@@ -23,6 +23,81 @@ def bot_panel_deep_link(settings: Settings) -> str:
     return f"https://t.me/{username}?start=painel"
 
 
+def start_message_text(settings: Settings) -> str:
+    text = (
+        "<b>🗳️ Eleições 2026 • Apuração Oficial</b>\n\n"
+        "Bem-vindo ao <b>Eleições 2026</b>.\n\n"
+        "Acompanhe por aqui a apuração das eleições em todo o Brasil, com informações "
+        "baseadas nos dados divulgados oficialmente pelo <b>Tribunal Superior Eleitoral (TSE)</b>.\n\n"
+        "<blockquote>"
+        "📊 Consulte resultados por cargo e estado\n"
+        "🔄 Acompanhe a evolução da totalização\n"
+        "🔔 Receba alertas durante a apuração\n"
+        "🔎 Consulte pesquisas eleitorais disponíveis\n"
+        "🏛️ Acesse informações sobre os candidatos"
+        "</blockquote>\n\n"
+        "<i><b>Transparência:</b> este bot é independente e não possui vínculo com partidos, "
+        "candidatos ou campanhas eleitorais. Os dados de apuração são reproduzidos a partir "
+        "das fontes oficiais, sem projeções próprias ou indicação de voto.</i>\n\n"
+        "👇 <b>Escolha uma opção abaixo para começar.</b>"
+    )
+    if settings.is_simulation:
+        text += (
+            "\n\n⚠️ <b>Modo de simulação:</b> os números exibidos atualmente "
+            "não representam votos reais."
+        )
+    return text
+
+
+def start_keyboard(settings: Settings, external_chat: bool = False) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+
+    if settings.webapp_url:
+        if external_chat:
+            rows.append([
+                InlineKeyboardButton(
+                    "📲 Abrir painel completo",
+                    url=bot_panel_deep_link(settings),
+                )
+            ])
+        else:
+            rows.append([
+                InlineKeyboardButton(
+                    "📲 Abrir painel completo",
+                    web_app=WebAppInfo(settings.webapp_url),
+                )
+            ])
+
+    rows.append([
+        InlineKeyboardButton("🗳️ Presidente", callback_data="result:br"),
+        InlineKeyboardButton("🗺️ Estados", callback_data="start:states"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def states_keyboard() -> InlineKeyboardMarkup:
+    ufs = [
+        ("AC", "ac"), ("AL", "al"), ("AP", "ap"),
+        ("AM", "am"), ("BA", "ba"), ("CE", "ce"),
+        ("DF", "df"), ("ES", "es"), ("GO", "go"),
+        ("MA", "ma"), ("MT", "mt"), ("MS", "ms"),
+        ("MG", "mg"), ("PA", "pa"), ("PB", "pb"),
+        ("PR", "pr"), ("PE", "pe"), ("PI", "pi"),
+        ("RJ", "rj"), ("RN", "rn"), ("RS", "rs"),
+        ("RO", "ro"), ("RR", "rr"), ("SC", "sc"),
+        ("SP", "sp"), ("SE", "se"), ("TO", "to"),
+    ]
+    rows = [
+        [
+            InlineKeyboardButton(label, callback_data=f"result:{scope}")
+            for label, scope in ufs[index:index + 3]
+        ]
+        for index in range(0, len(ufs), 3)
+    ]
+    rows.append([InlineKeyboardButton("⬅️ Voltar", callback_data="start:home")])
+    return InlineKeyboardMarkup(rows)
+
+
 def result_keyboard(
     settings: Settings,
     subscribed: bool = False,
@@ -199,28 +274,10 @@ class ElectionBot:
             )
             return
 
-        intro = (
-            "<b>Eleições 2026 • Apuração</b>\n\n"
-            "Acompanhe os resultados para Presidente usando dados publicados pelo Tribunal Superior Eleitoral. "
-            "O bot apenas reproduz os dados oficiais; não faz projeções.\n\n"
-            "<b>Comandos</b>\n"
-            "/resultado — Brasil\n"
-            "/estado MS — resultado presidencial em uma UF\n"
-            "/acompanhar — mantém uma mensagem deste chat atualizada\n"
-            "/parar — interrompe a atualização automática\n"
-            "/alertas on|off — alertas de marcos de totalização\n"
-            "/pesquisas — pesquisas de Presidente, Governador e Senador\n"
-            "/pesquisa governador MS — pesquisa por cargo e UF\n"
-            "/governador MS — atalho para pesquisas de governador\n"
-            "/senador MS — atalho para pesquisas de senador\n"
-            "/fonte — abre a fonte oficial"
-        )
-        if self.settings.is_simulation:
-            intro += "\n\n⚠️ <b>O bot está em modo SIMULAÇÃO.</b> Os números atuais não são votos reais."
         await update.effective_message.reply_text(
-            intro,
+            start_message_text(self.settings),
             parse_mode=ParseMode.HTML,
-            reply_markup=result_keyboard(
+            reply_markup=start_keyboard(
                 self.settings,
                 external_chat=update.effective_chat.type != "private",
             ),
@@ -571,6 +628,26 @@ class ElectionBot:
                 await query.answer("Ainda não encontrei sua inscrição em @ResultadoEleicoes.", show_alert=True)
             return
         await query.answer()
+        if data == "start:states":
+            if query.message:
+                await query.edit_message_text(
+                    "<b>🗺️ Resultados por estado</b>\n\n"
+                    "Escolha uma UF para consultar o resultado presidencial.",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=states_keyboard(),
+                )
+            return
+        if data == "start:home":
+            if query.message:
+                await query.edit_message_text(
+                    start_message_text(self.settings),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=start_keyboard(
+                        self.settings,
+                        external_chat=query.message.chat_id < 0,
+                    ),
+                )
+            return
         if data.startswith("g1:"):
             if not await self._guard_required_channel(update, context):
                 return
