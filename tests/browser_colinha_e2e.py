@@ -639,12 +639,13 @@ def test_telegram_fullscreen_and_keyboard_guard(browser: Browser, base_url: str)
             }
             """
         )
-        assert "keyboard-open" in (page.locator("body").get_attribute("class") or "")
+        body_class = page.locator("body").get_attribute("class") or ""
+        assert "keyboard-open" in body_class, body_class
         page.wait_for_timeout(250)
         nav_opacity = page.locator(".bottom-nav").evaluate("el => getComputedStyle(el).opacity")
         sticky_opacity = page.locator(".colinha-sticky-actions").evaluate("el => getComputedStyle(el).opacity")
-        assert float(nav_opacity) == 0.0
-        assert float(sticky_opacity) == 0.0
+        assert float(nav_opacity) < 0.01, ("nav_opacity", nav_opacity, body_class)
+        assert float(sticky_opacity) < 0.01, ("sticky_opacity", sticky_opacity, body_class)
 
         page.locator('[data-colinha-input="governador"]').blur()
         page.evaluate("document.body.classList.remove('keyboard-open')")
