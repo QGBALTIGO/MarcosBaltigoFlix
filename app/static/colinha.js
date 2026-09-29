@@ -129,6 +129,7 @@
   function voteMeta(slot,value){
     value=cleanNumber(value,slot.digits);
     if(!value)return {type:'empty',value:''};
+    if(!directoryFor(slot))return {type:'loading',value:value};
     var exact=exactCandidate(slot,value);
     if(exact)return {type:'candidate',value:value,candidate:exact};
     if(slot.proportional&&(value.length===2||value.length===slot.digits)){
@@ -197,6 +198,8 @@
       match.innerHTML='<span class="colinha-match-copy"><b>Número não identificado</b><small>Confira o número ou busque pelo nome.</small></span>';
     }else if(meta.type==='partial'){
       match.innerHTML='<span class="colinha-match-copy"><small>Continue digitando ou busque pelo nome.</small></span>';
+    }else if(meta.type==='loading'){
+      match.innerHTML='<span class="colinha-match-copy"><small>Carregando candidatura…</small></span>';
     }else{
       match.innerHTML='';
     }
@@ -268,7 +271,7 @@
       if(seq===cstate.loadSeq)loading.hidden=true;
     }
   }
-  function openPicker(key){
+  async function openPicker(key){
     var slot=SLOT_BY_KEY[key];
     if(!slot)return;
     if(state.scope==='br'&&slot.office!=='presidente'){
@@ -278,8 +281,11 @@
     cstate.pickerSlot=key;
     qs('#colinhaPickerTitle').textContent='Escolher · '+slotLabel(slot);
     qs('#colinhaPickerSearch').value='';
-    renderPicker('');
+    qs('#colinhaPickerList').innerHTML='<div class="colinha-picker-empty">Carregando candidaturas…</div>';
     openSheet('#colinhaPickerSheet');
+    try{await fetchDirectory(slot.office,scopeFor(slot),false)}catch(e){}
+    if(cstate.pickerSlot!==key)return;
+    renderPicker('');
     setTimeout(function(){try{qs('#colinhaPickerSearch').focus()}catch(e){}},220);
   }
   function renderPicker(query){
@@ -393,6 +399,7 @@
   }
   async function generateImageBlob(){
     if(state.scope==='br')throw new Error('Selecione um estado primeiro.');
+    await loadDirectories(false);
     var canvas=qs('#colinhaCanvas');
     canvas.width=1080;
     canvas.height=1350;
