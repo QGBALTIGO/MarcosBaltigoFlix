@@ -76,6 +76,8 @@ async def run(full: bool) -> int:
         smoke.ok("qs('#pollInstitute').onchange" in js, "poll institute binding missing")
         smoke.ok("qs('#pollQuestion').onchange" in js, "poll question binding missing")
         smoke.ok("qs('#pollStratum').onchange" in js, "poll stratum binding missing")
+        smoke.ok("async function requestJson" in js, "request timeout wrapper missing")
+        smoke.ok(js.count("fetch(") == 1, "direct fetch calls bypass requestJson timeout wrapper")
         smoke.ok("function requireStateForOffice" in js, "state requirement helper missing")
         smoke.ok("setActiveOffice('presidente')" in js, "Brazil does not initialize on president")
         smoke.ok("function showView(name)" in js, "view navigation missing")
