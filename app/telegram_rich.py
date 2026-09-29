@@ -137,7 +137,7 @@ def build_g1_channel_rich_html(
     buttons = []
     if panel_url:
         buttons.append(
-            f'<tg-button type="url" style="primary" url="{html.escape(panel_url, quote=True)}">'
+            f'<tg-button type="url" url="{html.escape(panel_url, quote=True)}">'
             "Painel completo</tg-button>"
         )
     buttons.append(
