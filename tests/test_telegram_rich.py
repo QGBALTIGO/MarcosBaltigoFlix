@@ -171,9 +171,13 @@ def test_shared_president_rich_keeps_update_button_for_groups():
     )
 
     assert rich.count("<tg-button ") == 2
-    assert "🔄 Atualizar" in rich
+    assert rich.count("<tg-button-row") == 2
+    assert "🔄 Atualizar resultado" in rich
+    assert 'type="callback_data"' in rich
     assert 'data="president:refresh:br"' in rich
+    assert 'type="callback_data" style="primary"' not in rich
     assert "📊 Painel ao vivo" in rich
+    assert 'type="url" style="primary"' in rich
     assert "⬅️ Voltar" not in rich
     assert "📤 Compartilhar" not in rich
     assert "<b>52,63%</b>" in rich
