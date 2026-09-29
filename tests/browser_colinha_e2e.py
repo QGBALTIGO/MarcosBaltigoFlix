@@ -748,6 +748,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
               const title = rect('.topbar .title');
               const location = rect('.location-bar');
               const summary = rect('#summaryCard');
+              const chips = rect('#officeChips');
               const nav = rect('.bottom-nav');
               return {
                 viewportHeight: innerHeight,
@@ -756,6 +757,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
                 locationTop: location.top,
                 locationBottom: location.bottom,
                 summaryTop: summary.top,
+                chipsBottom: chips.bottom,
                 navTop: nav.top,
                 navBottom: nav.bottom,
               };
@@ -765,6 +767,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
         assert 82 <= results_geometry["titleTop"] <= 132, results_geometry
         assert results_geometry["locationTop"] - results_geometry["topbarBottom"] <= 2, results_geometry
         assert 0 <= results_geometry["summaryTop"] - results_geometry["locationBottom"] <= 24, results_geometry
+        assert results_geometry["chipsBottom"] <= results_geometry["navTop"] - 4, results_geometry
         assert results_geometry["navBottom"] <= results_geometry["viewportHeight"] + 1, results_geometry
         page.screenshot(path=str(ARTIFACTS / "audit-results-390x844.png"))
 
