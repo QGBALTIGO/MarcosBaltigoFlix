@@ -275,7 +275,7 @@ def build_president_result_rich_html(
         if panel_url:
             buttons += (
                 '<tg-button-row align="center">'
-                f'<tg-button type="url" style="primary" url="{html.escape(panel_url, quote=True)}">'
+                f'<tg-button type="url" url="{html.escape(panel_url, quote=True)}">'
                 "📊 Painel ao vivo</tg-button>"
                 "</tg-button-row>"
             )
