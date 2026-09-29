@@ -104,6 +104,12 @@ async def run(full: bool) -> int:
         smoke.ok(".bottom-nav" in css, "bottom navigation CSS missing")
         smoke.ok("gaugeVoid" in html and "gaugeSubJudice" in html, "five-segment gauge missing")
         smoke.ok("window.addEventListener('unhandledrejection'" in html, "frontend fatal-error boundary missing")
+        smoke.ok("\\n<link" not in html, "literal \\n leaked into HTML head")
+        rj_flag = STATIC_DIR / "flags" / "rj.svg"
+        smoke.ok(rj_flag.exists(), "local RJ flag asset missing")
+        if rj_flag.exists():
+            smoke.ok("<svg" in rj_flag.read_text(encoding="utf-8").lower(), "RJ flag asset is not valid SVG text")
+        smoke.ok("if(scope==='rj')return'/static/flags/rj.svg?v=1'" in js, "RJ is not using local flag asset")
 
         # Every simple #id referenced through qs() must exist exactly once in the HTML.
         html_ids = re.findall(r'\bid="([^"]+)"', html)
@@ -234,8 +240,28 @@ async def run(full: bool) -> int:
                 smoke.ok(bool(detail.get("party")), f"detail {office}/{scope}: missing party")
                 smoke.ok(isinstance(detail.get("assets"), list), f"detail {office}/{scope}: assets not list")
                 smoke.ok(isinstance(detail.get("social_links"), list), f"detail {office}/{scope}: social_links not list")
+                detail_text = json.dumps(detail, ensure_ascii=False)
+                smoke.ok("�" not in detail_text, f"detail {office}/{scope}: Unicode replacement character found")
+                smoke.ok("Ã£" not in detail_text and "Ã§" not in detail_text and "Â" not in detail_text, f"detail {office}/{scope}: mojibake found")
             except Exception as exc:
                 smoke.failures.append(f"detail {office}/{scope}: {type(exc).__name__}: {exc}")
+
+        # Targeted UTF-8 regression probe using accented asset labels/descriptions.
+        try:
+            utf8_detail = await asyncio.wait_for(
+                candidates.detail("presidente", "br", "280002542548"),
+                timeout=25,
+            )
+            utf8_assets_text = "\n".join(
+                f"{item.get('type', '')} | {item.get('description', '')}"
+                for item in utf8_detail.get("assets", [])
+            )
+            smoke.ok("�" not in utf8_assets_text, "UTF-8 probe: replacement character found in assets")
+            smoke.ok("Benefício" in utf8_assets_text, "UTF-8 probe: Benefício not decoded correctly")
+            smoke.ok("Construção" in utf8_assets_text, "UTF-8 probe: Construção not decoded correctly")
+            smoke.ok("SÃO BERNARDO DO CAMPO" in utf8_assets_text, "UTF-8 probe: São Bernardo text not decoded correctly")
+        except Exception as exc:
+            smoke.failures.append(f"UTF-8 detail probe: {type(exc).__name__}: {exc}")
 
         elapsed = perf_counter() - started
         summary = {
