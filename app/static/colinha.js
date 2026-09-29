@@ -100,7 +100,11 @@
     if(candidate&&candidate.photo){
       return '<img class="'+cls+'" src="'+esc(candidate.photo)+'" alt="" loading="lazy" decoding="async">';
     }
-    return '<span class="'+(cls==='colinha-match-photo'?'colinha-match-placeholder':'colinha-picker-avatar')+'">'+esc(initials(candidateName(candidate)))+'</span>';
+    var fallbackClass='colinha-picker-avatar';
+    if(cls==='colinha-match-photo')fallbackClass='colinha-match-placeholder';
+    else if(cls==='urna-candidate-photo')fallbackClass='urna-candidate-placeholder';
+    else if(cls==='urna-summary-photo')fallbackClass='urna-summary-avatar';
+    return '<span class="'+fallbackClass+'">'+esc(initials(candidateName(candidate)))+'</span>';
   }
   function exactCandidate(slot,value){
     if(!value||value.length!==slot.digits)return null;
