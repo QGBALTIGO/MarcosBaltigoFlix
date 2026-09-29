@@ -155,7 +155,7 @@ body.tg-fullscreen .fullscreen{padding-bottom:max(var(--tg-bottom-clearance),env
   .urna-screen{min-height:535px}.urna-number-box{width:38px;height:47px}.urna-candidate-card{grid-template-columns:1fr 92px}.urna-candidate-card img,.urna-candidate-placeholder{width:92px;height:120px}.urna-numeric button{height:62px}.urna-actions button{font-size:12px}
 }
 
-body.keyboard-open .bottom-nav,
+body.keyboard-open .bottom-nav{opacity:0;pointer-events:none;transform:translate(-50%,120%);transition:opacity .16s ease,transform .16s ease}
 body.keyboard-open .colinha-sticky-actions{opacity:0;pointer-events:none;transform:translateY(120%);transition:opacity .16s ease,transform .16s ease}
 .colinha-card.has-focus{scroll-margin-top:120px;scroll-margin-bottom:42vh}
 @media(max-width:360px){
@@ -165,3 +165,7 @@ body.keyboard-open .colinha-sticky-actions{opacity:0;pointer-events:none;transfo
   .colinha-boxes{gap:4px}
   .colinha-digit-input{max-width:100%}
 }
+
+.colinha-cards{grid-template-columns:minmax(0,1fr);min-width:0}
+.colinha-card{width:100%;min-width:0}
+.colinha-number-row,.colinha-digit-input,.colinha-boxes{min-width:0}
