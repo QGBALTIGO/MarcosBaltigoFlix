@@ -48,6 +48,9 @@ async def run(full: bool) -> int:
         smoke.ok("id=\"candidateArea\"" in html, "HTML missing candidateArea")
         smoke.ok("id=\"candidateSearch\"" in html, "HTML missing candidateSearch")
         smoke.ok("id=\"candidateMore\"" in html, "HTML missing candidateMore")
+        smoke.ok("id=\"summaryModeTitle\"" in html, "HTML missing summaryModeTitle")
+        smoke.ok("id=\"analysisSourceNote\"" in html, "HTML missing analysisSourceNote")
+        smoke.ok("id=\"estimateMeta\"" not in html, "legacy poll sentence still appears below cargo")
         smoke.ok("id=\"financeCard\"" in html, "HTML missing financeCard")
         smoke.ok("/api/candidates?office=" in js, "JS missing candidate API")
         smoke.ok("const qs=s=>document.querySelector(s),qsa=s=>[...document.querySelectorAll(s)];" in js, "DOM selector helpers are not explicit")
@@ -82,6 +85,11 @@ async def run(full: bool) -> int:
         smoke.ok("function requireStateForOffice" in js, "state requirement helper missing")
         smoke.ok("setActiveOffice('presidente')" in js, "Brazil does not initialize on president")
         smoke.ok("function showView(name)" in js, "view navigation missing")
+        smoke.ok("function renderPollSummary(poll)" in js, "poll summary renderer missing")
+        smoke.ok("function renderOfficialSummary(d)" in js, "official summary renderer missing")
+        smoke.ok("function renderSummaryFromState()" in js, "summary mode switch missing")
+        smoke.ok("percentuais exibidos como 0%" in js, "zero fallback for missing polls missing")
+        smoke.ok("office=${encodeURIComponent(office)}" in js, "official result request is not office-aware")
         smoke.ok("function selectState(scope,source='manual')" in js, "state selection function missing")
         smoke.ok("persistScope(scope,source)" in js, "state selection does not persist")
         smoke.ok("updateLocationUI();updateGeoStatus();" in js, "state selection does not update location UI")
@@ -201,7 +209,23 @@ async def run(full: bool) -> int:
                 smoke.ok(all(bool(x.get("ballot_name")) for x in sample), f"cached {uf}/{office}: missing names")
                 smoke.ok(all(bool(x.get("number")) for x in sample), f"cached {uf}/{office}: missing numbers")
 
-        # 4) TSE presidential result for Brazil + every UF, repeated from cache.
+        # 4) TSE result URL contract for every 2026 office.
+        office_url_checks = {
+            "presidente": ("br", "c0001", settings.tse_election_code),
+            "governador": ("ms", "c0003", settings.tse_state_election_code),
+            "senador": ("ms", "c0005", settings.tse_state_election_code),
+            "federal": ("ms", "c0006", settings.tse_state_election_code),
+            "estadual": ("ms", "c0007", settings.tse_state_election_code),
+        }
+        for office, (scope, cargo_fragment, election_code) in office_url_checks.items():
+            url = tse.result_url(scope, office=office)
+            smoke.ok(cargo_fragment in url, f"TSE {office}: wrong cargo code")
+            smoke.ok(f"/{election_code}/" in url, f"TSE {office}: wrong election code")
+
+        df_state_url = tse.result_url("df", office="estadual")
+        smoke.ok("c0008" in df_state_url, "TSE distrital: wrong cargo code")
+
+        # 5) TSE presidential result for Brazil + every UF, repeated from cache.
         result_scopes = ["br", *ufs]
         tse_results = {}
         for scope in result_scopes:
@@ -219,7 +243,7 @@ async def run(full: bool) -> int:
                 smoke.ok(result.sections_counted_pct >= 0, f"TSE cached {scope}: negative progress")
                 smoke.ok(result.valid_votes >= 0, f"TSE cached {scope}: negative valid votes")
 
-        # 5) Poll integration: national president and MS offices used most heavily by the current UI.
+        # 6) Poll integration: national president and MS offices used most heavily by the current UI.
         poll_cases = [
             ("presidente", "br", "datafolha"),
             ("governador", "ms", None),
@@ -235,7 +259,7 @@ async def run(full: bool) -> int:
             except Exception as exc:
                 smoke.failures.append(f"G1 {office}/{scope}: {type(exc).__name__}: {exc}")
 
-        # 6) Candidate detail for each office in MS + national president.
+        # 7) Candidate detail for each office in MS + national president.
         detail_cases = [("presidente", "br")]
         detail_cases += [(office, "ms") for office in OFFICES]
         for office, scope in detail_cases:
