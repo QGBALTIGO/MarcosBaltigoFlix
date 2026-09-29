@@ -196,11 +196,17 @@ def inline_state_options(query: str) -> list[tuple[str, str, str]]:
     if needle in {"", "estado", "estados"}:
         return list(INLINE_STATE_OPTIONS)
 
+    # A two-letter UF is an exact selector. This prevents "sp" from also
+    # matching the letters inside names such as "Espírito Santo".
+    for item in INLINE_STATE_OPTIONS:
+        scope, _name, _filename = item
+        if needle == scope:
+            return [item]
+
     matches: list[tuple[str, str, str]] = []
     for item in INLINE_STATE_OPTIONS:
-        scope, name, _filename = item
-        folded_name = _fold_inline_text(name)
-        if needle == scope or needle in folded_name:
+        _scope, name, _filename = item
+        if needle in _fold_inline_text(name):
             matches.append(item)
     return matches
 
