@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
 <link rel="preconnect" href="https://flagcdn.com" crossorigin>
 <link rel="preconnect" href="https://especiaisg1.globo">
-<link rel="stylesheet" href="/static/app.css?v=20260929-18">
+<link rel="stylesheet" href="/static/app.css?v=20260929-20">
 </head>
 <body>
 <div class="app">
@@ -85,6 +85,68 @@
       <details class="card detail-card method-card" id="methodology" style="display:none"><summary>Metodologia e registro</summary><div class="method-lines" id="methodLines"></div></details>
     </section>
 
+
+    <section id="colinhaView" hidden>
+      <div class="colinha-head">
+        <div>
+          <div class="colinha-kicker">ELEIÇÕES 2026</div>
+          <h2>MINHA <span>COLINHA</span></h2>
+        </div>
+        <button class="colinha-uf-btn" id="colinhaUfBtn" type="button" aria-label="Selecionar estado">
+          <span id="colinhaUfText">BR</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 9 5 5 5-5"/></svg>
+        </button>
+      </div>
+
+      <div class="colinha-state-needed card" id="colinhaStateNeeded">
+        <div class="colinha-state-icon">UF</div>
+        <div>
+          <b>Escolha seu estado</b>
+          <p>A colinha usa as candidaturas da sua UF para deputado, Senado e governo.</p>
+        </div>
+        <button id="colinhaChooseState" type="button">Selecionar</button>
+      </div>
+
+      <div id="colinhaBody" hidden>
+        <div class="colinha-loading" id="colinhaLoading" hidden>
+          <div class="card skeleton" style="height:180px"></div>
+          <div class="card skeleton" style="height:180px"></div>
+        </div>
+        <div id="colinhaCards" class="colinha-cards"></div>
+
+        <button class="train-card" id="colinhaTrain" type="button">
+          <span class="train-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4">
+              <rect x="4" y="5" width="40" height="38" rx="7"/>
+              <rect x="8" y="9" width="21" height="17" rx="2"/>
+              <path d="M10 31h17M10 36h11"/>
+              <circle cx="34" cy="13" r="1.2"/><circle cx="39" cy="13" r="1.2"/>
+              <circle cx="34" cy="18" r="1.2"/><circle cx="39" cy="18" r="1.2"/>
+              <circle cx="34" cy="23" r="1.2"/><circle cx="39" cy="23" r="1.2"/>
+              <path d="M32 31h8M32 36h8"/>
+            </svg>
+          </span>
+          <span><b>Treine com a sua colinha</b><small>Simule a sequência da urna com os números que você anotou.</small></span>
+          <span class="train-arrow">›</span>
+        </button>
+
+        <div class="colinha-source-note">
+          <b>Dados públicos de candidaturas.</b> Ferramenta independente de organização e treinamento; não registra voto e não é um serviço oficial da Justiça Eleitoral.
+        </div>
+
+        <div class="colinha-sticky-actions" id="colinhaActions">
+          <button class="colinha-action secondary" id="colinhaSaveImage" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M5 20h14"/></svg>
+            Salvar imagem
+          </button>
+          <button class="colinha-action primary" id="colinhaShare" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.6 6.8-4.2M8.6 13.4l6.8 4.2"/></svg>
+            Compartilhar
+          </button>
+        </div>
+      </div>
+    </section>
+
     <section id="favoritesView" hidden>
       <div class="section-head"><div class="section-title">Favoritos</div></div>
       <div id="favoritesList" class="candidates"></div>
@@ -94,7 +156,7 @@
 
 <nav class="bottom-nav">
   <button class="nav-btn active" data-view="results"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg><span>Resultados</span></button>
-  <button class="nav-btn" data-view="polls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/></svg><span>Pesquisas</span></button>
+  <button class="nav-btn" data-view="colinha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h3M13 12h3M8 16h3M13 16h3"/></svg><span>Colinha</span></button>
   <button class="nav-btn" data-view="favorites"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg><span>Favoritos</span></button>
 </nav>
 
@@ -108,6 +170,91 @@
     <div class="state-list" id="stateList"></div>
   </div>
 </section>
+
+
+<section class="sheet" id="colinhaPickerSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h2 id="colinhaPickerTitle">Escolher candidatura</h2>
+    <button class="close-btn" data-close aria-label="Fechar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="sheet-scroll">
+    <label class="search colinha-picker-search">
+      <span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg></span>
+      <input id="colinhaPickerSearch" placeholder="Buscar por nome, número ou partido..." autocomplete="off">
+    </label>
+    <div class="colinha-picker-list" id="colinhaPickerList"></div>
+  </div>
+</section>
+
+<section class="fullscreen urna-fullscreen" id="urnaModal">
+  <div class="urna-wrap">
+    <div class="urna-top-actions">
+      <button class="urna-round-btn" id="urnaClose" type="button" aria-label="Fechar treino">×</button>
+      <div class="urna-top-title"><b>Treinamento</b><span id="urnaScopeLabel">Eleições 2026</span></div>
+      <button class="urna-sound-btn" id="urnaSound" type="button" aria-pressed="true">Som</button>
+    </div>
+
+    <div class="urna-machine">
+      <div class="urna-screen">
+        <div class="urna-progress" id="urnaProgress"></div>
+
+        <div id="urnaVotingView">
+          <div class="urna-eyebrow">TREINAMENTO</div>
+          <h2 id="urnaOfficeTitle">Deputado Federal</h2>
+
+          <div class="urna-number-line">
+            <span>Número:</span>
+            <div class="urna-number-boxes" id="urnaNumberBoxes"></div>
+          </div>
+
+          <div class="urna-candidate" id="urnaCandidate"></div>
+          <div class="urna-compare" id="urnaCompare" hidden></div>
+
+          <div class="urna-help" id="urnaHelp">
+            <span>Aperte a tecla:</span>
+            <b>CONFIRMA</b> para confirmar este voto<br>
+            <b>CORRIGE</b> para reiniciar este voto
+          </div>
+        </div>
+
+        <div id="urnaFinishView" class="urna-finish" hidden></div>
+      </div>
+
+      <div class="urna-keypad-wrap">
+        <div class="urna-numeric" id="urnaNumeric">
+          <button type="button" data-urna-digit="1">1</button>
+          <button type="button" data-urna-digit="2">2</button>
+          <button type="button" data-urna-digit="3">3</button>
+          <button type="button" data-urna-digit="4">4</button>
+          <button type="button" data-urna-digit="5">5</button>
+          <button type="button" data-urna-digit="6">6</button>
+          <button type="button" data-urna-digit="7">7</button>
+          <button type="button" data-urna-digit="8">8</button>
+          <button type="button" data-urna-digit="9">9</button>
+          <span></span>
+          <button type="button" data-urna-digit="0">0</button>
+          <span></span>
+        </div>
+        <div class="urna-actions">
+          <button type="button" class="urna-white" id="urnaBlank">BRANCO</button>
+          <button type="button" class="urna-orange" id="urnaCorrect">CORRIGE</button>
+          <button type="button" class="urna-green" id="urnaConfirm">CONFIRMA</button>
+        </div>
+      </div>
+
+      <div class="urna-footer">
+        <span>Treino independente</span>
+        <b>Resultado Eleições 2026</b>
+        <span>Não registra voto</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<canvas id="colinhaCanvas" width="1080" height="1350" hidden></canvas>
 
 <section class="fullscreen" id="analysisModal">
   <header class="modal-top"><button class="close-btn" data-full-close aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h2>Análise avançada</h2><span></span></header>
@@ -144,6 +291,7 @@
   window.addEventListener('unhandledrejection',function(e){var r=e.reason;showFatal(r&&r.message?r.message:r)});
 })();
 </script>
-<script src="/static/app.js?v=20260929-18"></script>
+<script src="/static/app.js?v=20260929-20"></script>
+<script src="/static/colinha.js?v=20260929-01"></script>
 </body>
 </html>
