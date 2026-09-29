@@ -524,6 +524,7 @@ class G1PollClient:
         )
         self._discoveries: dict[str, tuple[float, Discovery]] = {}
         self._cache: dict[str, tuple[float, G1Poll]] = {}
+        self._catalog_cache: tuple[float, dict[str, Any]] | None = None
 
     @staticmethod
     def _key(
@@ -629,9 +630,14 @@ class G1PollClient:
         return poll
 
     async def catalog(self) -> dict[str, Any]:
+        now = time.monotonic()
+        if self._catalog_cache and now - self._catalog_cache[0] < 21600:
+            return self._catalog_cache[1]
         response = await self.http.get(G1_INDEX_URL, headers={"Accept": "application/json"})
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        self._catalog_cache = (time.monotonic(), data)
+        return data
 
     async def close(self) -> None:
         await self.http.aclose()
