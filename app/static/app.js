@@ -203,61 +203,89 @@ async function loadEstimateInBackground(seq){
     if(!cached&&seq===state.requestSeq&&state.directory){state.directory.estimate={available:false};state.directory.candidates.forEach(c=>{c.estimate_percentage=0});renderRealCandidates();renderSummaryFromState()}
   }
 }
+function matchOfficialCandidate(candidate,resultCandidates){
+  const id=String(candidate?.id||'');
+  const number=String(candidate?.number||'');
+  return (resultCandidates||[]).find(item=>id&&String(item.candidate_id||'')===id)
+    ||(resultCandidates||[]).find(item=>number&&String(item.number||'')===number)
+    ||null;
+}
+function mergeOfficialResultIntoDirectory(result){
+  if(!state.directory||state.directoryContext!==`${state.office}:${state.scope}`)return;
+  const resultCandidates=result?.candidates||[];
+  state.directory.candidates.forEach(candidate=>{
+    const official=matchOfficialCandidate(candidate,resultCandidates);
+    candidate.result_votes=Number(official?.votes||0);
+    candidate.result_percentage=Number(official?.percentage||0);
+    candidate.result_status=official?.official_status||candidate.candidacy_status||'';
+  });
+  const total=Number(result?.total_votes||0);
+  if(total>0){
+    state.directory.candidates.sort((a,b)=>Number(b.result_votes||0)-Number(a.result_votes||0)||String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR'));
+  }else{
+    state.directory.candidates.sort((a,b)=>String(a.ballot_name).localeCompare(String(b.ballot_name),'pt-BR')||String(a.number).localeCompare(String(b.number),'pt-BR'));
+  }
+  renderRealCandidates();
+}
 async function loadOfficialResultInBackground(seq){
   const office=state.office,scope=state.scope,context=`${office}:${scope}`;
   if(office!=='presidente'&&scope==='br'){state.result=null;state.resultContext=null;renderSummaryFromState();return}
   try{
     const d=await requestJson(`/api/result?scope=${encodeURIComponent(scope)}&office=${encodeURIComponent(office)}`,{cache:'no-cache',timeout:7000});
     if(seq!==state.requestSeq||state.office!==office||state.scope!==scope)return;
-    const hasOfficialVotes=!d.simulation&&(Number(d.total_votes||0)>0||Number(d.sections_counted||0)>0||Number(d.sections_counted_pct||0)>0);
-    if(hasOfficialVotes){
-      state.result=d;state.resultContext=context;renderOfficialSummary(d);
-    }else{
-      state.result=null;state.resultContext=null;renderSummaryFromState();
-    }
+    state.result=d;
+    state.resultContext=context;
+    mergeOfficialResultIntoDirectory(d);
+    renderOfficialSummary(d);
   }catch(e){
     if(seq!==state.requestSeq)return;
-    state.result=null;state.resultContext=null;renderSummaryFromState();
+    state.result=null;
+    state.resultContext=null;
+    renderSummaryFromState();
   }
 }
 async function loadResults(){
   if(requireStateForOffice(state.office,'results'))return;
-  const seq=++state.requestSeq,office=state.office,scope=state.scope,context=`${office}:${scope}`;
+  const seq=++state.requestSeq,office=state.office,scope=state.scope;
   qs('#summaryCard').style.display='block';
   state.result=null;state.resultContext=null;
-  renderPollSummary(null);
-  if(state.pollContext!==context){state.poll=null;state.pollContext=null}
+  state.poll=null;state.pollContext=null;
+  renderSummaryFromState();
   const key=directoryKey(office,scope),cached=cacheRead(key,DIRECTORY_TTL);
   if(cached){applyDirectory(cached,true)}else{
     state.directory=null;state.directoryContext=null;
     qs('#candidateArea').innerHTML='<div class="card coming skeleton" style="height:180px"></div>';
   }
   loadOfficialResultInBackground(seq);
-  loadEstimateInBackground(seq);
   try{
     const directory=await requestJson(`/api/candidates?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&include_poll=false`,{cache:'no-cache',timeout:8000});
     if(seq!==state.requestSeq||state.office!==office||state.scope!==scope)return;
     cacheWrite(key,directory);
     applyDirectory(directory,false);
-    if(state.poll&&state.pollContext===`${office}:${scope}`)mergePollIntoDirectory(state.poll);
+    if(state.result&&state.resultContext===`${office}:${scope}`)mergeOfficialResultIntoDirectory(state.result);
     renderSummaryFromState();
   }catch(e){
-    if(!cached&&seq===state.requestSeq){qs('#candidateArea').innerHTML=`<div class="card coming"><b>Não foi possível carregar as candidaturas</b><br>${esc(e.message)}</div>`;renderPollSummary(null)}
+    if(!cached&&seq===state.requestSeq){
+      qs('#candidateArea').innerHTML=`<div class="card coming"><b>Não foi possível carregar as candidaturas</b><br>${esc(e.message)}</div>`;
+      renderSummaryFromState();
+    }
   }
 }
 
-function candidateEstimateText(c){return pct(Number(c.estimate_percentage||0))}
+function candidateResultText(c){return pct(Number(c.result_percentage||0))}
 function renderRealCandidates(){
   const directory=state.directory;if(!directory)return;
   const query=norm(state.candidateQuery);
   let arr=(directory.candidates||[]).filter(c=>!query||[c.ballot_name,c.name,c.number,c.party,c.occupation].some(v=>norm(v).includes(query)));
-  const visible=arr.slice(0,state.candidateLimit),hasEstimate=!!directory.estimate?.available;let html='';
-  if(hasEstimate&&visible.length){
+  const visible=arr.slice(0,state.candidateLimit);
+  const totalVotes=Number(state.result?.total_votes||0);
+  let html='';
+  if(totalVotes>0&&visible.length){
     const hero=visible.slice(0,2),rest=visible.slice(2);
-    html+=hero.map((c,i)=>`<article class="card candidate-card candidate-hero animate" data-real-candidate="${i}"><div class="candidate-main">${avatarHtml(c.ballot_name,c.photo)}<div><div class="cand-name">${esc(c.ballot_name)}</div><div class="cand-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="estimate-badge">${esc(directory.estimate.institute||'Pesquisa')} · ${esc(directory.estimate.date||'')}</div></div><div class="cand-pct">${candidateEstimateText(c)}</div></div><div class="progress"><i style="width:${Math.max(0,Math.min(100,Number(c.estimate_percentage||0)))}%"></i></div><div class="cand-votes">Intenção de voto · não é apuração</div></article>`).join('');
-    html+=rest.map((c,idx)=>`<article class="candidate-row real animate" data-real-candidate="${idx+2}">${avatarHtml(c.ballot_name,c.photo,'mini-avatar')}<div><div class="row-name">${esc(c.ballot_name)}</div><div class="row-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="row-bar"><i style="width:${Math.max(0,Math.min(100,Number(c.estimate_percentage||0)))}%"></i></div></div><div class="row-pct">${candidateEstimateText(c)}</div></article>`).join('');
+    html+=hero.map((c,i)=>`<article class="card candidate-card candidate-hero animate" data-real-candidate="${i}"><div class="candidate-main">${avatarHtml(c.ballot_name,c.photo)}<div><div class="cand-name">${esc(c.ballot_name)}</div><div class="cand-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="estimate-badge">Apuração oficial</div></div><div class="cand-pct">${candidateResultText(c)}</div></div><div class="progress"><i style="width:${Math.max(0,Math.min(100,Number(c.result_percentage||0)))}%"></i></div><div class="cand-votes">${fmt(c.result_votes||0)} votos</div></article>`).join('');
+    html+=rest.map((c,idx)=>`<article class="candidate-row real animate" data-real-candidate="${idx+2}">${avatarHtml(c.ballot_name,c.photo,'mini-avatar')}<div><div class="row-name">${esc(c.ballot_name)}</div><div class="row-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="row-bar"><i style="width:${Math.max(0,Math.min(100,Number(c.result_percentage||0)))}%"></i></div></div><div class="row-pct">${candidateResultText(c)}</div></article>`).join('');
   }else{
-    html=visible.map((c,i)=>`<article class="candidate-row real animate" data-real-candidate="${i}">${avatarHtml(c.ballot_name,c.photo,'mini-avatar')}<div><div class="row-name">${esc(c.ballot_name)}</div><div class="row-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="no-estimate">${esc(c.occupation||c.party_name||'Candidatura registrada')}</div></div><div class="row-pct">0%</div></article>`).join('');
+    html=visible.map((c,i)=>`<article class="candidate-row real animate" data-real-candidate="${i}">${avatarHtml(c.ballot_name,c.photo,'mini-avatar')}<div><div class="row-name">${esc(c.ballot_name)}</div><div class="row-id">${[c.number,c.party].filter(Boolean).map(esc).join(' · ')}</div><div class="no-estimate">Aguardando apuração oficial</div></div><div class="row-pct">0%</div></article>`).join('');
   }
   qs('#candidateArea').innerHTML=html||'<div class="card coming"><b>Nenhuma candidatura encontrada</b><br>Tente outro termo de busca.</div>';
   qsa('[data-real-candidate]').forEach(el=>el.onclick=()=>openCandidate(visible[Number(el.dataset.realCandidate)],{office:state.office,scope:state.scope}));
@@ -289,25 +317,36 @@ function renderPollSummary(poll){
   qs('#validShare').textContent=pct(Math.max(0,...values));
   setSummaryLabels(labels,values.map(v=>pct(v)));
 }
+function renderZeroSummary(){
+  const card=qs('#summaryCard');card.style.display='block';card.classList.add('official-mode');card.classList.remove('poll-mode');
+  const candidates=(state.directory?.candidates||[]).slice(0,5);
+  const labels=candidates.map(c=>c.ballot_name||'—');
+  while(labels.length<5)labels.push('—');
+  setGauge(0,0,0,0,0);
+  qs('#summaryModeTitle').textContent='APURAÇÃO';
+  qs('#totalVotes').textContent='0 votos';
+  qs('#summaryShareLabel').textContent='Maior percentual';
+  qs('#validShare').textContent='0%';
+  setSummaryLabels(labels,['0%','0%','0%','0%','0%']);
+}
 function renderOfficialSummary(d){
   const card=qs('#summaryCard');card.style.display='block';card.classList.add('official-mode');card.classList.remove('poll-mode');
+  const candidates=(d.candidates||[]).slice(0,5);
+  while(candidates.length<5)candidates.push(null);
+  const values=candidates.map(c=>Number(c?.percentage||0));
+  const labels=candidates.map(c=>c?.ballot_name||'—');
   const total=Number(d.total_votes||0);
-  const validPct=total?Number(d.valid_votes||0)/total*100:0;
-  const voidPct=total?Number(d.void_votes||0)/total*100:0;
-  const subPct=total?Number(d.void_sub_judice_votes||0)/total*100:0;
-  const nullPct=total?Number(d.null_votes||0)/total*100:0;
-  const blankPct=total?Number(d.blank_votes||0)/total*100:0;
-  setGauge(validPct,voidPct,subPct,nullPct,blankPct);
-  qs('#summaryModeTitle').textContent='VOTAÇÃO';
+  setGauge(...values);
+  qs('#summaryModeTitle').textContent='APURAÇÃO';
   qs('#totalVotes').textContent=`${fmt(total)} votos`;
-  qs('#summaryShareLabel').textContent='Votos a candidatos concorrentes';
-  qs('#validShare').textContent=pct(validPct);
-  setSummaryLabels(['Votos válidos','Anulados','Sub judice','Nulos','Em branco'],[fmt(d.valid_votes),fmt(d.void_votes),fmt(d.void_sub_judice_votes),fmt(d.null_votes),fmt(d.blank_votes)],['#3569a8','#ef5045','#f59c32','#8d73d1','#e593ae']);
+  qs('#summaryShareLabel').textContent='Maior percentual';
+  qs('#validShare').textContent=pct(Math.max(0,...values));
+  setSummaryLabels(labels,values.map(v=>pct(v)));
 }
 function renderSummaryFromState(){
   const context=`${state.office}:${state.scope}`;
   if(state.result&&state.resultContext===context)renderOfficialSummary(state.result);
-  else renderPollSummary(state.pollContext===context?state.poll:null);
+  else renderZeroSummary();
 }
 function renderSummary(){renderSummaryFromState()}
 function openAnalysis(){
@@ -367,8 +406,8 @@ function openAnalysis(){
 function openCandidate(c,context={office:state.office,scope:state.scope}){
   if(!c)return;state.selectedCandidate=c;state.detailContext=context;
   qs('#detailOffice').textContent=officeLabels[context.office]||c.office||'Candidato';qs('#detailPhotoWrap').innerHTML=avatarHtml(c.ballot_name,c.photo,'detail-photo');qs('#detailNumber').textContent=c.number||'—';qs('#detailName').textContent=c.ballot_name||'—';qs('#detailParty').textContent=[c.party,c.party_name].filter(Boolean).join(' · ')||'Partido não informado';qs('#detailPlace').textContent=states[context.scope]||String(context.scope||'').toUpperCase();qs('#detailHeart').classList.toggle('active',isFavorite(c));qs('#detailHeart').textContent=isFavorite(c)?'♥':'♡';qs('#detailStatus').style.display='none';
-  const estimate=pct(Number(c.estimate_percentage||0));
-  qs('#detailResult').innerHTML=`<div class="info-stat"><small>Pesquisa</small><b>${esc(estimate)}</b></div><div class="info-stat"><small>Número</small><b>${esc(c.number||'—')}</b></div><div class="info-stat"><small>Partido</small><b>${esc(c.party||'—')}</b></div><div class="info-stat"><small>Cargo</small><b>${esc(officeLabels[context.office]||c.office||'—')}</b></div>`;qs('#viceSection').style.display='none';fillCandidateDetail(c);openFull('#candidateModal');loadCandidateDetail(c,context);
+  const resultPct=pct(Number(c.result_percentage||0));
+  qs('#detailResult').innerHTML=`<div class="info-stat"><small>Apuração</small><b>${esc(resultPct)}</b></div><div class="info-stat"><small>Número</small><b>${esc(c.number||'—')}</b></div><div class="info-stat"><small>Partido</small><b>${esc(c.party||'—')}</b></div><div class="info-stat"><small>Cargo</small><b>${esc(officeLabels[context.office]||c.office||'—')}</b></div>`;qs('#viceSection').style.display='none';fillCandidateDetail(c);openFull('#candidateModal');loadCandidateDetail(c,context);
 }
 function renderFinance(c){
   const card=qs('#financeCard');if(!card)return;
