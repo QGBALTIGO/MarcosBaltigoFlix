@@ -497,7 +497,7 @@ body.tg-fullscreen #favoritesView .section-head{
   margin-top:18px;
 }
 body.tg-fullscreen .summary{
-  margin-bottom:14px;
+  margin-bottom:10px;
 }
 body.tg-fullscreen .summary-main{
   padding-top:16px;
@@ -521,7 +521,11 @@ body.tg-fullscreen .submetrics{
   padding-top:12px;
 }
 body.tg-fullscreen .analysis-btn{
-  height:56px;
+  height:52px;
+}
+body.tg-fullscreen .office-result-head{
+  margin-top:10px;
+  margin-bottom:8px;
 }
 body.tg-fullscreen .detail-hero{
   padding:18px 20px;
