@@ -191,14 +191,15 @@ function renderRealCandidates(){
   const more=qs('#candidateMore');more.style.display=arr.length>state.candidateLimit?'block':'none';more.textContent=`Mostrar mais (${Math.max(0,arr.length-state.candidateLimit)})`;
 }
 
-function setSummaryLabels(labels,values){
+function setSummaryLabels(labels,values,colors=['#3d7df6','#65c66b','#f59c32','#9a58dc','#61b7e7']){
   const valueIds=['#validVotes','#voidVotes','#subJudiceVotes','#nullVotes','#blankVotes'];
   const labelIds=['#summaryLabel1','#summaryLabel2','#summaryLabel3','#summaryLabel4','#summaryLabel5'];
-  const colors=['#3d7df6','#65c66b','#f59c32','#9a58dc','#61b7e7'];
+  const gaugeIds=['#gaugeValid','#gaugeVoid','#gaugeSubJudice','#gaugeNull','#gaugeBlank'];
   for(let i=0;i<5;i++){
     qs(valueIds[i]).textContent=values[i]??'0%';
     qs(labelIds[i]).textContent=labels[i]||'—';
     const sw=qs(`#summarySwatch${i+1}`);if(sw)sw.style.background=colors[i];
+    const gauge=qs(gaugeIds[i]);if(gauge)gauge.style.stroke=colors[i];
   }
 }
 function renderPollSummary(poll){
@@ -228,7 +229,7 @@ function renderOfficialSummary(d){
   qs('#totalVotes').textContent=`${fmt(total)} votos`;
   qs('#summaryShareLabel').textContent='Votos a candidatos concorrentes';
   qs('#validShare').textContent=pct(validPct);
-  setSummaryLabels(['Votos válidos','Anulados','Sub judice','Nulos','Em branco'],[fmt(d.valid_votes),fmt(d.void_votes),fmt(d.void_sub_judice_votes),fmt(d.null_votes),fmt(d.blank_votes)]);
+  setSummaryLabels(['Votos válidos','Anulados','Sub judice','Nulos','Em branco'],[fmt(d.valid_votes),fmt(d.void_votes),fmt(d.void_sub_judice_votes),fmt(d.null_votes),fmt(d.blank_votes)],['#3569a8','#ef5045','#f59c32','#8d73d1','#e593ae']);
 }
 function renderSummaryFromState(){
   const context=`${state.office}:${state.scope}`;
