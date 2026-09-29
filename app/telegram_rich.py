@@ -457,13 +457,13 @@ def build_state_office_result_rich_html(
 
     page_label = f"Página {page + 1} de {pages} · {len(result.candidates)} candidaturas"
     totals_rows = "".join([
-        "<tr><td align="left">Seções totalizadas</td>"
+        '<tr><td align="left">Seções totalizadas</td>'
         f'<td align="right"><b>{html.escape(sections_text)}</b></td></tr>',
-        "<tr><td align="left">Votos válidos</td>"
+        '<tr><td align="left">Votos válidos</td>'
         f'<td align="right"><b>{_int_br(result.valid_votes)}</b></td></tr>',
-        "<tr><td align="left">Em branco</td>"
+        '<tr><td align="left">Em branco</td>'
         f'<td align="right"><b>{_int_br(result.blank_votes)}</b></td></tr>',
-        "<tr><td align="left">Nulos</td>"
+        '<tr><td align="left">Nulos</td>'
         f'<td align="right"><b>{_int_br(result.null_votes)}</b></td></tr>',
     ])
 
