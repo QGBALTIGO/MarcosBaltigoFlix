@@ -504,14 +504,14 @@ body.tg-fullscreen .summary-main{
   padding-bottom:14px;
 }
 body.tg-fullscreen .gauge-wrap{
-  height:188px;
+  height:176px;
   margin:-10px 0 0;
 }
 body.tg-fullscreen .gauge{
   width:min(350px,92%);
 }
 body.tg-fullscreen .gauge-center{
-  top:84px;
+  top:78px;
 }
 body.tg-fullscreen .valid-share{
   margin:-12px 0 14px;
@@ -521,7 +521,7 @@ body.tg-fullscreen .submetrics{
   padding-top:12px;
 }
 body.tg-fullscreen .analysis-btn{
-  height:52px;
+  height:48px;
 }
 body.tg-fullscreen .office-result-head{
   margin-top:10px;
