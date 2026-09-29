@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.constants import ParseMode
@@ -17,9 +18,11 @@ from .storage import Storage, milestone_for
 from .telegram_rich import (
     RichMessageError,
     answer_inline_rich_query,
+    answer_inline_rich_results,
     STATE_RESULT_PAGE_SIZE,
     build_g1_channel_rich_html,
     build_president_result_rich_html,
+    build_state_inline_menu_rich_html,
     build_state_office_result_rich_html,
     edit_rich_html,
     send_rich_html,
@@ -131,6 +134,75 @@ STATE_OFFICE_LABELS = {
     "senador": "Senador",
     "governador": "Governador",
 }
+
+
+INLINE_FLAG_BASE_URL = (
+    "https://cdn.jsdelivr.net/gh/pierrelapalu/"
+    "icones-bandeiras-br-uf@master/dist/square-rounded/png-200"
+)
+INLINE_BRAZIL_FLAG_FILE = "01-brasil-square-rounded.png"
+INLINE_STATE_OPTIONS = (
+    ("ac", "Acre", "02-acre-square-rounded.png"),
+    ("al", "Alagoas", "03-alagoas-square-rounded.png"),
+    ("ap", "Amapá", "04-amapa-square-rounded.png"),
+    ("am", "Amazonas", "05-amazonas-square-rounded.png"),
+    ("ba", "Bahia", "06-bahia-square-rounded.png"),
+    ("ce", "Ceará", "07-ceara-square-rounded-v2.png"),
+    ("df", "Distrito Federal", "08-distrito-federal-square-rounded.png"),
+    ("es", "Espírito Santo", "09-espirito-santo-square-rounded-v2.png"),
+    ("go", "Goiás", "10-goias-square-rounded.png"),
+    ("ma", "Maranhão", "11-maranhao-square-rounded.png"),
+    ("mt", "Mato Grosso", "12-mato-grosso-square-rounded.png"),
+    ("ms", "Mato Grosso do Sul", "13-mato-grosso-do-sul-square-rounded.png"),
+    ("mg", "Minas Gerais", "14-minas-gerais-square-rounded.png"),
+    ("pa", "Pará", "15-para-square-rounded.png"),
+    ("pb", "Paraíba", "16-paraiba-square-rounded-v2.png"),
+    ("pr", "Paraná", "17-parana-square-rounded.png"),
+    ("pe", "Pernambuco", "18-pernambuco-square-rounded.png"),
+    ("pi", "Piauí", "19-piaui-square-rounded.png"),
+    ("rj", "Rio de Janeiro", "20-rio-de-janeiro-square-rounded.png"),
+    ("rn", "Rio Grande do Norte", "21-rio-grande-do-norte-square-rounded.png"),
+    ("rs", "Rio Grande do Sul", "22-rio-grande-do-sul-square-rounded.png"),
+    ("ro", "Rondônia", "23-rondonia-square-rounded.png"),
+    ("rr", "Roraima", "24-roraima-square-rounded.png"),
+    ("sc", "Santa Catarina", "25-santa-catarina-square-rounded.png"),
+    ("sp", "São Paulo", "26-sao-paulo-square-rounded.png"),
+    ("se", "Sergipe", "27-sergipe-square-rounded.png"),
+    ("to", "Tocantins", "28-tocantins-square-rounded.png"),
+)
+INLINE_STATE_FLAG_FILES = {
+    scope: filename for scope, _name, filename in INLINE_STATE_OPTIONS
+}
+
+
+def inline_flag_url(scope: str) -> str:
+    filename = (
+        INLINE_BRAZIL_FLAG_FILE
+        if scope.lower() == "br"
+        else INLINE_STATE_FLAG_FILES.get(scope.lower(), "")
+    )
+    return f"{INLINE_FLAG_BASE_URL}/{filename}" if filename else ""
+
+
+def _fold_inline_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", (value or "").casefold())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
+
+def inline_state_options(query: str) -> list[tuple[str, str, str]]:
+    needle = _fold_inline_text(" ".join((query or "").strip().split()))
+    if needle.startswith("estado "):
+        needle = needle[7:].strip()
+    if needle in {"", "estado", "estados"}:
+        return list(INLINE_STATE_OPTIONS)
+
+    matches: list[tuple[str, str, str]] = []
+    for item in INLINE_STATE_OPTIONS:
+        scope, name, _filename = item
+        folded_name = _fold_inline_text(name)
+        if needle == scope or needle in folded_name:
+            matches.append(item)
+    return matches
 
 
 def state_office_label(scope: str, office: str) -> str:
@@ -690,8 +762,9 @@ class ElectionBot:
                     inline_query_id=inline.id,
                     rich_html=rich_html,
                     result_id=f"estado-{scope}-{office}-p{page}-2026",
-                    title=f"🗳️ {office_name} • {place}",
+                    title=f"{office_name} • {place}",
                     description=f"Página {page + 1}/{pages} • {status}",
+                    thumbnail_url=inline_flag_url(scope),
                 )
             except Exception:
                 log.exception("Falha respondendo inline de estado/cargo")
@@ -701,31 +774,82 @@ class ElectionBot:
                     pass
             return
 
-        if query not in {"", "presidente", "presidente br", "br"}:
-            await inline.answer([], cache_time=1)
-            return
-        try:
-            result, _ = await self.results.fetch("br", force=True)
-            rich_html = self._president_rich(result, shared=True)
-            status = (
-                "Aguardando início da apuração oficial"
-                if is_pre_election(result)
-                else f"{result.sections_counted_pct:.2f}% das seções totalizadas".replace(".", ",")
-            )
-            await answer_inline_rich_query(
-                token=self.settings.telegram_bot_token,
-                inline_query_id=inline.id,
-                rich_html=rich_html,
-                result_id="presidente-br-2026",
-                title="🗳️ Presidente • Brasil",
-                description=f"Apuração oficial 2026 • {status}",
-            )
-        except Exception:
-            log.exception("Falha respondendo inline da apuração presidencial")
+        if query in {"presidente", "presidente br", "br"}:
             try:
-                await inline.answer([], cache_time=1)
-            except TelegramError:
-                pass
+                result, _ = await self.results.fetch("br", force=True)
+                rich_html = self._president_rich(result, shared=True)
+                status = (
+                    "Aguardando início da apuração oficial"
+                    if is_pre_election(result)
+                    else f"{result.sections_counted_pct:.2f}% das seções totalizadas".replace(".", ",")
+                )
+                await answer_inline_rich_query(
+                    token=self.settings.telegram_bot_token,
+                    inline_query_id=inline.id,
+                    rich_html=rich_html,
+                    result_id="presidente-br-2026",
+                    title="Presidente • Brasil",
+                    description=f"Apuração oficial 2026 • {status}",
+                    thumbnail_url=inline_flag_url("br"),
+                )
+            except Exception:
+                log.exception("Falha respondendo inline da apuração presidencial")
+                try:
+                    await inline.answer([], cache_time=1)
+                except TelegramError:
+                    pass
+            return
+
+        state_options = inline_state_options(query)
+        if query == "" or state_options:
+            rich_results: list[dict[str, str]] = []
+
+            # With an empty query, President stays fixed as the first result.
+            if query == "":
+                try:
+                    result, _ = await self.results.fetch("br", force=True)
+                    status = (
+                        "Aguardando início da apuração oficial"
+                        if is_pre_election(result)
+                        else f"{result.sections_counted_pct:.2f}% das seções totalizadas".replace(".", ",")
+                    )
+                    rich_results.append({
+                        "rich_html": self._president_rich(result, shared=True),
+                        "result_id": "presidente-br-2026",
+                        "title": "Presidente • Brasil",
+                        "description": f"Apuração oficial 2026 • {status}",
+                        "thumbnail_url": inline_flag_url("br"),
+                    })
+                except Exception:
+                    log.exception("Falha montando Presidente no catálogo inline")
+
+            for scope, place, _filename in state_options:
+                rich_results.append({
+                    "rich_html": build_state_inline_menu_rich_html(scope),
+                    "result_id": f"estado-{scope}-menu-2026",
+                    "title": place,
+                    "description": "Escolha o cargo • Eleições 2026",
+                    "thumbnail_url": inline_flag_url(scope),
+                })
+
+            if rich_results:
+                try:
+                    await answer_inline_rich_results(
+                        token=self.settings.telegram_bot_token,
+                        inline_query_id=inline.id,
+                        results=rich_results,
+                        cache_time=0,
+                        is_personal=False,
+                    )
+                except Exception:
+                    log.exception("Falha respondendo catálogo inline de estados")
+                    try:
+                        await inline.answer([], cache_time=1)
+                    except TelegramError:
+                        pass
+                return
+
+        await inline.answer([], cache_time=1)
 
     async def _send_result(self, message, scope: str, edit: bool = False) -> None:
         try:
@@ -1116,12 +1240,32 @@ class ElectionBot:
             _, _, scope, office, raw_page = data.split(":", 4)
             if scope not in VALID_UFS or office not in STATE_OFFICE_LABELS:
                 return
-            if query.message:
+            page = int(raw_page)
+            if query.inline_message_id:
+                try:
+                    result, _ = await self.results.fetch(scope, office=office)
+                    await edit_rich_html(
+                        token=self.settings.telegram_bot_token,
+                        inline_message_id=query.inline_message_id,
+                        rich_html=self._state_office_rich(
+                            result,
+                            office=office,
+                            page=page,
+                            shared=True,
+                        ),
+                    )
+                except Exception:
+                    log.exception(
+                        "Falha abrindo cargo em mensagem inline: %s/%s",
+                        scope,
+                        office,
+                    )
+            elif query.message:
                 await self._send_state_office_rich(
                     query.message,
                     scope=scope,
                     office=office,
-                    page=int(raw_page),
+                    page=page,
                     edit=True,
                 )
             return
@@ -1163,7 +1307,16 @@ class ElectionBot:
             scope = data.split(":", 1)[1]
             if scope not in VALID_UFS:
                 return
-            if query.message:
+            if query.inline_message_id:
+                try:
+                    await edit_rich_html(
+                        token=self.settings.telegram_bot_token,
+                        inline_message_id=query.inline_message_id,
+                        rich_html=build_state_inline_menu_rich_html(scope),
+                    )
+                except RichMessageError as exc:
+                    log.warning("Não foi possível voltar ao menu inline do estado: %s", exc)
+            elif query.message:
                 await query.edit_message_text(
                     f"<b>🗺️ {UF_NAMES.get(scope, scope.upper())}</b>\n\n"
                     "Escolha o cargo que deseja acompanhar:",
