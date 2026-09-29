@@ -11,9 +11,10 @@ from .config import Settings
 from .formatter import UF_NAMES, format_result
 from .g1_polls import G1Poll, G1PollClient
 from .poll_formatter import format_g1_history, format_g1_poll
+from .result_service import ResultService, is_pre_election
 from .storage import Storage, milestone_for
 from .telegram_rich import build_g1_channel_rich_html, send_rich_html
-from .tse import TSEClient, VALID_UFS
+from .tse import VALID_UFS
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ def bot_panel_deep_link(settings: Settings) -> str:
 
 
 def start_message_text(settings: Settings) -> str:
-    text = (
+    return (
         "<b>🗳️ Eleições 2026 • Apuração Oficial</b>\n\n"
         "Bem-vindo ao <b>Eleições 2026</b>.\n\n"
         "Acompanhe por aqui a apuração das eleições em todo o Brasil, com informações "
@@ -41,12 +42,6 @@ def start_message_text(settings: Settings) -> str:
         "das fontes oficiais, sem projeções próprias ou indicação de voto.</i>\n\n"
         "👇 <b>Escolha uma opção abaixo para começar.</b>"
     )
-    if settings.is_simulation:
-        text += (
-            "\n\n⚠️ <b>Modo de simulação:</b> os números exibidos atualmente "
-            "não representam votos reais."
-        )
-    return text
 
 
 def start_keyboard(settings: Settings, external_chat: bool = False) -> InlineKeyboardMarkup:
@@ -165,9 +160,9 @@ def polls_menu_keyboard(settings: Settings, external_chat: bool = False) -> Inli
 
 
 class ElectionBot:
-    def __init__(self, settings: Settings, tse: TSEClient, storage: Storage, g1_polls: G1PollClient):
+    def __init__(self, settings: Settings, results: ResultService, storage: Storage, g1_polls: G1PollClient):
         self.settings = settings
-        self.tse = tse
+        self.results = results
         self.storage = storage
         self.g1_polls = g1_polls
         self.application: Application | None = None
@@ -285,7 +280,7 @@ class ElectionBot:
 
     async def _send_result(self, message, scope: str, edit: bool = False) -> None:
         try:
-            result, _ = await self.tse.fetch(scope)
+            result, _ = await self.results.fetch(scope)
             text = format_result(result, self.settings)
             external_chat = getattr(getattr(message, "chat", None), "type", "private") != "private"
             if edit:
@@ -336,7 +331,7 @@ class ElectionBot:
         scope = "br"
         if context.args and context.args[0].lower() in VALID_UFS:
             scope = context.args[0].lower()
-        result, _ = await self.tse.fetch(scope)
+        result, _ = await self.results.fetch(scope)
         sent = await update.effective_message.reply_text(
             format_result(result, self.settings),
             parse_mode=ParseMode.HTML,
@@ -389,11 +384,18 @@ class ElectionBot:
         if not await self._guard_required_channel(update, context):
             return
         try:
-            result, _ = await self.tse.fetch("br")
-            await update.effective_message.reply_text(
-                f"TSE acessível. Geração <code>{result.generation_id or '-'}</code>, atualização {result.totalization_time or '-'}, seções {result.sections_counted_pct:.2f}%.",
-                parse_mode=ParseMode.HTML,
-            )
+            result, _ = await self.results.fetch("br")
+            if is_pre_election(result):
+                await update.effective_message.reply_text(
+                    "<b>TSE configurado no ambiente oficial.</b>\n"
+                    "A apuração ainda não foi publicada. As candidaturas reais já estão carregadas com <b>0 votos e 0%</b>.",
+                    parse_mode=ParseMode.HTML,
+                )
+            else:
+                await update.effective_message.reply_text(
+                    f"TSE acessível. Geração <code>{result.generation_id or '-'}</code>, atualização {result.totalization_time or '-'}, seções {result.sections_counted_pct:.2f}%.",
+                    parse_mode=ParseMode.HTML,
+                )
         except Exception as exc:
             await update.effective_message.reply_text(f"Falha ao consultar TSE: {type(exc).__name__}")
 
@@ -592,7 +594,7 @@ class ElectionBot:
             return
         try:
             chat_id: str | int = int(target) if target.lstrip("-").isdigit() else target
-            result, _ = await self.tse.fetch("br")
+            result, _ = await self.results.fetch("br")
             sent = await context.bot.send_message(
                 chat_id=chat_id,
                 text=format_result(result, self.settings),
@@ -669,7 +671,7 @@ class ElectionBot:
                 return
             scope = data.split(":", 1)[1]
             try:
-                result, _ = await self.tse.fetch(scope)
+                result, _ = await self.results.fetch(scope)
                 await query.edit_message_text(
                     format_result(result, self.settings),
                     parse_mode=ParseMode.HTML,
@@ -687,7 +689,7 @@ class ElectionBot:
             scope = data.split(":", 1)[1]
             if query.message:
                 try:
-                    result, _ = await self.tse.fetch(scope)
+                    result, _ = await self.results.fetch(scope)
                     await self.storage.upsert_live(query.message.chat_id, query.message.message_id, scope, result.sections_counted_pct)
                     await query.edit_message_text(
                         format_result(result, self.settings),
