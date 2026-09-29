@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from time import perf_counter
 
+from .bot import ElectionBot
 from .candidates import CandidateDirectory
 from .config import get_settings
 from .g1_polls import G1PollClient
@@ -47,6 +48,19 @@ async def run(full: bool) -> int:
         js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
         css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
         colinha_js = (STATIC_DIR / "colinha.js").read_text(encoding="utf-8")
+
+        # Telegram callback runtime: prevent deploys where callback routes reference
+        # methods that were accidentally omitted from the ElectionBot class.
+        for method_name in (
+            "_state_office_rich",
+            "_state_page_count",
+            "_state_fallback_text",
+            "_send_state_office_rich",
+        ):
+            smoke.ok(
+                hasattr(ElectionBot, method_name),
+                f"ElectionBot missing state runtime method: {method_name}",
+            )
 
         # Colinha is a production-critical voting aid/training view. Keep a deploy gate
         # around its DOM wiring, six-step sequence, persistence and responsive guards.
