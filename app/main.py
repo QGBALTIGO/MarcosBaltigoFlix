@@ -177,9 +177,10 @@ async def api_g1_catalog():
 async def api_candidates(
     office: str = Query(default="presidente"),
     scope: str = Query(default="br", min_length=2, max_length=2),
+    include_poll: bool = Query(default=False),
 ):
     try:
-        return await candidates.list(office, scope, include_poll=True)
+        return await candidates.list(office, scope, include_poll=include_poll)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
