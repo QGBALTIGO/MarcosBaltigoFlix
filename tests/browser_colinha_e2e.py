@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -423,6 +424,7 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
         assert download.suggested_filename == "minha-colinha-MS.png"
         path = Path(download.path())
         assert path.stat().st_size > 1000, path.stat().st_size
+        shutil.copy2(path, ARTIFACTS / "generated-colinha-MS.png")
 
         # Share falls back to the same generated image when Web Share is unavailable.
         with page.expect_download(timeout=15_000) as share_info:
@@ -464,7 +466,7 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
         expect(page.locator(".urna-finish-score")).to_contain_text("1 divergência")
         expect(page.locator(".urna-summary-row")).to_have_count(6)
 
-        page.screenshot(path=str(ARTIFACTS / "urna-fim-390x844.png"), full_page=True)
+        page.screenshot(path=str(ARTIFACTS / "urna-fim-390x844.png"))
 
         # Restart exercises BRANCO, CORRIGE and the disabled confirm guard.
         page.locator("#urnaRestart").click()
@@ -481,7 +483,8 @@ def test_full_flow(browser: Browser, base_url: str) -> None:
         page.locator("#urnaClose").click()
         assert "show" not in (page.locator("#urnaModal").get_attribute("class") or "")
 
-        page.screenshot(path=str(ARTIFACTS / "colinha-390x844.png"), full_page=True)
+        page.wait_for_timeout(350)
+        page.screenshot(path=str(ARTIFACTS / "colinha-390x844.png"))
         assert not errors, errors
     finally:
         context.close()
@@ -608,7 +611,6 @@ def test_responsive_matrix(browser: Browser, base_url: str) -> None:
             if size["width"] in {320, 390}:
                 page.screenshot(
                     path=str(ARTIFACTS / f"colinha-{size['width']}x{size['height']}.png"),
-                    full_page=True,
                 )
             assert not errors, (size, errors)
         finally:
