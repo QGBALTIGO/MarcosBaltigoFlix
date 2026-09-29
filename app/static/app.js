@@ -17,6 +17,10 @@ const POLL_TTL=10*60*1000;
 let savedScope=localStorage.getItem('election_scope')||'br';
 if(!states[savedScope])savedScope='br';
 let savedScopeSource=localStorage.getItem('election_scope_source')||'';
+if(savedScope!=='br'&&!savedScopeSource){
+  savedScopeSource='manual';
+  localStorage.setItem('election_scope_source','manual');
+}
 let state={
   scope:savedScope,office:'presidente',result:null,poll:null,selectedCandidate:null,catalog:null,
   directory:null,directoryContext:null,candidateLimit:24,candidateQuery:'',pendingOffice:null,pendingPollOffice:null,
