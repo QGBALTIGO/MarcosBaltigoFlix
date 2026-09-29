@@ -784,6 +784,7 @@
 
   var baseShowView=showView;
   showView=function(name){
+    document.body.classList.toggle('colinha-active',name==='colinha');
     if(name!=='colinha'){
       qs('#colinhaView').hidden=true;
       return baseShowView(name);
