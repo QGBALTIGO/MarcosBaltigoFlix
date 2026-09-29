@@ -749,6 +749,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
               const location = rect('.location-bar');
               const summary = rect('#summaryCard');
               const chips = rect('#officeChips');
+              const officeHead = rect('.office-result-head');
               const nav = rect('.bottom-nav');
               return {
                 viewportHeight: innerHeight,
@@ -758,6 +759,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
                 locationBottom: location.bottom,
                 summaryTop: summary.top,
                 chipsBottom: chips.bottom,
+                officeHeadBottom: officeHead.bottom,
                 navTop: nav.top,
                 navBottom: nav.bottom,
               };
@@ -768,6 +770,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
         assert results_geometry["locationTop"] - results_geometry["topbarBottom"] <= 2, results_geometry
         assert 0 <= results_geometry["summaryTop"] - results_geometry["locationBottom"] <= 24, results_geometry
         assert results_geometry["chipsBottom"] <= results_geometry["navTop"] - 4, results_geometry
+        assert results_geometry["officeHeadBottom"] <= results_geometry["navTop"] - 2, results_geometry
         assert results_geometry["navBottom"] <= results_geometry["viewportHeight"] + 1, results_geometry
         page.screenshot(path=str(ARTIFACTS / "audit-results-390x844.png"))
 
@@ -806,6 +809,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
         assert candidate_geometry["headerTop"] <= 1, candidate_geometry
         assert candidate_geometry["headerBottom"] <= 175, candidate_geometry
         assert 0 <= candidate_geometry["heroTop"] - candidate_geometry["headerBottom"] <= 2, candidate_geometry
+        page.screenshot(path=str(ARTIFACTS / "audit-candidate-modal-390x844.png"))
         page.locator("#detailHeart").click()
         page.locator("#candidateModal [data-full-close]").click()
         page.wait_for_timeout(340)
@@ -825,6 +829,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
         )
         assert analysis_geometry["headerBottom"] <= 175, analysis_geometry
         assert 0 <= analysis_geometry["bodyTop"] - analysis_geometry["headerBottom"] <= 24, analysis_geometry
+        page.screenshot(path=str(ARTIFACTS / "audit-analysis-modal-390x844.png"))
         page.locator("#analysisModal [data-full-close]").click()
         page.wait_for_timeout(340)
 
@@ -842,6 +847,7 @@ def test_fullscreen_all_views_and_modals_spacing(browser: Browser, base_url: str
         )
         assert 70 <= sheet_geometry["top"] <= 125, sheet_geometry
         assert sheet_geometry["bottom"] <= sheet_geometry["viewportHeight"] + 1, sheet_geometry
+        page.screenshot(path=str(ARTIFACTS / "audit-location-sheet-390x844.png"))
         page.locator("#locationSheet [data-close]").click()
         page.wait_for_timeout(340)
 
