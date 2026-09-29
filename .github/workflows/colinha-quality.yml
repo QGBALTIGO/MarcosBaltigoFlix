@@ -1,0 +1,67 @@
+name: Colinha quality gates
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feature/colinha-urna-2026]
+
+permissions:
+  contents: read
+
+jobs:
+  static-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Compile Python
+        run: python -m compileall -q app tests
+
+      - name: Run unit/static tests
+        run: pytest -q
+
+      - name: Validate frontend JavaScript syntax
+        run: |
+          node --check app/static/app.js
+          node --check app/static/colinha.js
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Run Colinha browser matrix
+        run: python tests/colinha_browser_test.py
+
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: colinha-browser-screenshots
+          path: artifacts/
+          if-no-files-found: ignore
