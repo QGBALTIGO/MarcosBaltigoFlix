@@ -360,6 +360,16 @@ class ElectionBot:
         self.g1_polls = g1_polls
         self.application: Application | None = None
 
+    async def _record_user(self, update: Update) -> None:
+        user = update.effective_user
+        if not user:
+            return
+        try:
+            await self.storage.record_user(user.id)
+        except Exception:
+            # User analytics must never block the election bot.
+            log.exception("Falha registrando user_id=%s", user.id)
+
     def _is_configured_admin(self, update: Update) -> bool:
         if not self.settings.admin_ids:
             return True
@@ -391,6 +401,7 @@ class ElectionBot:
             return False
 
     async def _guard_required_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        await self._record_user(update)
         if await self._is_required_channel_member(update, context):
             return True
         markup = InlineKeyboardMarkup([
@@ -740,6 +751,7 @@ class ElectionBot:
                 )
 
     async def inline_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await self._record_user(update)
         inline = update.inline_query
         if not inline:
             return
@@ -1192,6 +1204,7 @@ class ElectionBot:
             await update.effective_message.reply_text(f"Não consegui publicar no destino: {exc}")
 
     async def callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await self._record_user(update)
         query = update.callback_query
         if not query:
             return
