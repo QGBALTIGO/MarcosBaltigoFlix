@@ -1,4 +1,7 @@
 from app.bot import (
+    INLINE_STATE_OPTIONS,
+    inline_flag_url,
+    inline_state_options,
     parse_state_inline_query,
     president_fallback_keyboard,
     start_keyboard,
@@ -135,3 +138,22 @@ def test_state_inline_parser_rejects_invalid_context():
     assert parse_state_inline_query("estado xx federal 0") is None
     assert parse_state_inline_query("estado ms presidente 0") is None
     assert parse_state_inline_query("estado ms senador -1") is None
+
+
+def test_inline_catalog_has_president_flag_and_all_state_flags():
+    assert len(INLINE_STATE_OPTIONS) == 27
+    assert INLINE_STATE_OPTIONS[0][0] == "ac"
+    assert INLINE_STATE_OPTIONS[-1][0] == "to"
+
+    assert inline_flag_url("br").endswith("/01-brasil-square-rounded.png")
+    assert inline_flag_url("sp").endswith("/26-sao-paulo-square-rounded.png")
+    assert inline_flag_url("ms").endswith("/13-mato-grosso-do-sul-square-rounded.png")
+    assert inline_flag_url("xx") == ""
+
+
+def test_inline_state_search_accepts_uf_name_and_accents():
+    assert [item[0] for item in inline_state_options("sp")] == ["sp"]
+    assert [item[0] for item in inline_state_options("São Paulo")] == ["sp"]
+    assert [item[0] for item in inline_state_options("sao paulo")] == ["sp"]
+    assert [item[0] for item in inline_state_options("estado ms")] == ["ms"]
+    assert len(inline_state_options("")) == 27
