@@ -361,14 +361,15 @@ class ElectionBot:
         self.application: Application | None = None
 
     async def _record_user(self, update: Update) -> None:
-        user = update.effective_user
-        if not user:
+        user = getattr(update, "effective_user", None)
+        user_id = getattr(user, "id", None)
+        if user_id is None:
             return
         try:
-            await self.storage.record_user(user.id)
+            await self.storage.record_user(int(user_id))
         except Exception:
-            # User analytics must never block the election bot.
-            log.exception("Falha registrando user_id=%s", user.id)
+            # User registry must never block the election bot.
+            log.exception("Falha registrando user_id=%s", user_id)
 
     def _is_configured_admin(self, update: Update) -> bool:
         if not self.settings.admin_ids:
