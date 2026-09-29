@@ -169,3 +169,10 @@ body.keyboard-open .colinha-sticky-actions{opacity:0;pointer-events:none;transfo
 .colinha-cards{grid-template-columns:minmax(0,1fr);min-width:0}
 .colinha-card{width:100%;min-width:0}
 .colinha-number-row,.colinha-digit-input,.colinha-boxes{min-width:0}
+
+body.colinha-active .topbar,
+body.colinha-active .location-bar{display:none}
+body.colinha-active .content{padding-top:18px}
+body.tg-fullscreen.colinha-active .content{
+  padding-top:calc(16px + var(--tg-top-clearance) + var(--tg-controls-guard));
+}
