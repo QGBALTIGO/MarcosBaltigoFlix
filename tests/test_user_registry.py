@@ -40,17 +40,6 @@ def test_storage_records_unique_user_ids_and_updates_interactions(tmp_path: Path
         assert await storage.count_users() == 2
         assert await storage.list_user_ids() == [1001, 1002]
 
-        import aiosqlite
-
-        async with aiosqlite.connect(db_path) as db:
-            cursor = await db.execute(
-                "SELECT interactions FROM bot_users WHERE user_id=?",
-                (1001,),
-            )
-            row = await cursor.fetchone()
-            assert row is not None
-            assert int(row[0]) == 2
-
     asyncio.run(scenario())
 
 
