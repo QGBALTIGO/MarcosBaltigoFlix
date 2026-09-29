@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
 <link rel="preconnect" href="https://flagcdn.com" crossorigin>
 <link rel="preconnect" href="https://especiaisg1.globo">
-<link rel="stylesheet" href="/static/app.css?v=20260929-13">
+<link rel="stylesheet" href="/static/app.css?v=20260929-14">
 </head>
 <body>
 <div class="app">
@@ -39,17 +39,17 @@
               <path id="gaugeNull" class="null" pathLength="100" d="M20 122 A100 100 0 0 1 220 122"/>
               <path id="gaugeBlank" class="blank" pathLength="100" d="M20 122 A100 100 0 0 1 220 122"/>
             </svg>
-            <div class="gauge-center"><b>VOTAÇÃO</b><span id="totalVotes">— votos</span></div>
+            <div class="gauge-center"><b id="summaryModeTitle">PESQUISA</b><span id="totalVotes">0%</span></div>
           </div>
-          <div class="valid-share">Votos a candidatos concorrentes · <b id="validShare">—</b></div>
+          <div class="valid-share"><span id="summaryShareLabel">Maior intenção de voto</span> · <b id="validShare">0%</b></div>
           <div class="metrics3">
-            <div class="metric"><div class="metric-top"><i class="swatch" style="background:#244a7e"></i><strong id="validVotes">—</strong></div><small>Votos válidos</small></div>
-            <div class="metric"><div class="metric-top"><i class="swatch" style="background:var(--red)"></i><strong id="voidVotes">—</strong></div><small>Anulados</small></div>
-            <div class="metric"><div class="metric-top"><i class="swatch" style="background:var(--orange)"></i><strong id="subJudiceVotes">—</strong></div><small>Sub judice</small></div>
+            <div class="metric"><div class="metric-top"><i class="swatch" id="summarySwatch1" style="background:#3d7df6"></i><strong id="validVotes">0%</strong></div><small id="summaryLabel1">—</small></div>
+            <div class="metric"><div class="metric-top"><i class="swatch" id="summarySwatch2" style="background:#65c66b"></i><strong id="voidVotes">0%</strong></div><small id="summaryLabel2">—</small></div>
+            <div class="metric"><div class="metric-top"><i class="swatch" id="summarySwatch3" style="background:#f59c32"></i><strong id="subJudiceVotes">0%</strong></div><small id="summaryLabel3">—</small></div>
           </div>
           <div class="submetrics">
-            <div class="submetric"><i class="swatch" style="background:#8d73d1"></i><div><strong id="nullVotes">—</strong><span>Nulos</span></div></div>
-            <div class="submetric"><i class="swatch" style="background:var(--pink)"></i><div><strong id="blankVotes">—</strong><span>Em branco</span></div></div>
+            <div class="submetric"><i class="swatch" id="summarySwatch4" style="background:#9a58dc"></i><div><strong id="nullVotes">0%</strong><span id="summaryLabel4">—</span></div></div>
+            <div class="submetric"><i class="swatch" id="summarySwatch5" style="background:#61b7e7"></i><div><strong id="blankVotes">0%</strong><span id="summaryLabel5">—</span></div></div>
           </div>
         </div>
         <button class="analysis-btn" id="analysisBtn">Ver análise completa <span>›</span></button>
@@ -63,7 +63,7 @@
         <button class="chip" data-office="federal">Deputado Federal</button>
         <button class="chip" data-office="estadual">Deputado Estadual/Distrital</button>
       </div>
-      <div class="section-head"><div><div class="section-title" id="officeTitle">Presidente</div><small class="muted" id="estimateMeta">Carregando candidaturas reais…</small></div><small class="muted" id="sectionsInfo">—</small></div>
+      <div class="section-head office-result-head"><div class="section-title" id="officeTitle">Presidente</div><small class="candidate-count" id="sectionsInfo">0 candidaturas</small></div>
       <label class="candidate-search" id="candidateSearchWrap" style="display:none">
         <span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg></span>
         <input id="candidateSearch" placeholder="Buscar candidato, número ou partido..." autocomplete="off">
@@ -113,9 +113,9 @@
   <header class="modal-top"><button class="close-btn" data-full-close aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h2>Análise avançada</h2><span></span></header>
   <div class="analysis-body">
     <div class="place-pill" id="analysisPlace">● Brasil</div>
-    <div class="analysis-card"><h3>Distribuição dos votos</h3><div class="donut" id="candidateDonut"></div><div class="legend" id="donutLegend"></div></div>
-    <div class="analysis-card"><h3>Estatísticas da eleição</h3><div class="muted" id="eligibleText">— eleitores aptos</div><div class="participation"><i id="participationBar"></i><b id="participationLabel">Participação: —</b></div><div class="stats2" id="analysisStats"></div></div>
-    <div class="analysis-source-note"><span>ⓘ</span><span>Dados reproduzidos da fonte oficial configurada no sistema.</span></div>
+    <div class="analysis-card"><h3 id="analysisDistributionTitle">Distribuição</h3><div class="donut" id="candidateDonut"></div><div class="legend" id="donutLegend"></div></div>
+    <div class="analysis-card"><h3 id="analysisStatsTitle">Detalhes</h3><div class="muted" id="eligibleText">—</div><div class="participation"><i id="participationBar"></i><b id="participationLabel">Participação: —</b></div><div class="stats2" id="analysisStats"></div></div>
+    <div class="analysis-source-note" id="analysisSourceNote"><span>ⓘ</span><span>Pesquisa de intenção de voto — não é apuração.</span></div>
   </div>
 </section>
 
@@ -144,6 +144,6 @@
   window.addEventListener('unhandledrejection',function(e){var r=e.reason;showFatal(r&&r.message?r.message:r)});
 })();
 </script>
-<script src="/static/app.js?v=20260929-13"></script>
+<script src="/static/app.js?v=20260929-14"></script>
 </body>
 </html>
