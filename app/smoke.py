@@ -53,6 +53,12 @@ async def run(full: bool) -> int:
         smoke.ok("$('.nav-btn').forEach" in js and "$('.nav-btn').forEach" not in js.replace("$('.nav-btn').forEach", ""), "broken nav querySelector pattern present")
         smoke.ok("$('.chip').forEach" in js and "$('.chip').forEach" not in js.replace("$('.chip').forEach", ""), "broken chip querySelector pattern present")
         smoke.ok("loadResults();" in js, "JS never starts result loading")
+        smoke.ok("function requireStateForOffice" in js, "state requirement helper missing")
+        smoke.ok("setActiveOffice('presidente')" in js, "Brazil does not initialize on president")
+        smoke.ok("function showView(name)" in js, "view navigation missing")
+        smoke.ok("data-favorite" in js, "favorite click binding missing")
+        smoke.ok("include_poll=false" in js, "initial candidates still block on polling")
+        smoke.ok("pendingOffice" in js and "pendingPollOffice" in js, "state-selection flow missing")
         smoke.ok(".candidate-search" in css, "candidate search CSS missing")
         smoke.ok(".bottom-nav" in css, "bottom navigation CSS missing")
         smoke.ok("gaugeVoid" in html and "gaugeSubJudice" in html, "five-segment gauge missing")
@@ -70,11 +76,31 @@ async def run(full: bool) -> int:
                     )
                     matrix[(uf, office)] = data
                     smoke.ok(data.get("count", 0) > 0, f"{uf}/{office}: empty candidate list")
-                    first = (data.get("candidates") or [{}])[0]
+                    sample = data.get("candidates") or []
+                    first = (sample or [{}])[0]
                     smoke.ok(bool(first.get("id")), f"{uf}/{office}: first candidate missing id")
                     smoke.ok(bool(first.get("ballot_name")), f"{uf}/{office}: first candidate missing ballot name")
                     smoke.ok(bool(first.get("number")), f"{uf}/{office}: first candidate missing number")
                     smoke.ok(bool(first.get("party")), f"{uf}/{office}: first candidate missing party")
+                    photo_count = 0
+                    for candidate in sample:
+                        prefix = f"{uf}/{office}/{candidate.get('id') or '?'}"
+                        smoke.ok(bool(candidate.get("id")), prefix + ": missing id")
+                        smoke.ok(bool(candidate.get("ballot_name")), prefix + ": missing ballot name")
+                        smoke.ok(bool(candidate.get("number")), prefix + ": missing number")
+                        smoke.ok(bool(candidate.get("party")), prefix + ": missing party")
+                        photo = str(candidate.get("photo") or "")
+                        if photo:
+                            photo_count += 1
+                            smoke.ok(
+                                photo.startswith("https://raw.githubusercontent.com/"),
+                                prefix + ": photo is not from high-resolution TSE asset mirror",
+                            )
+                    if sample:
+                        smoke.ok(
+                            photo_count / len(sample) >= 0.95,
+                            f"{uf}/{office}: photo coverage below 95% ({photo_count}/{len(sample)})",
+                        )
                 except Exception as exc:
                     smoke.failures.append(f"{uf}/{office}: {type(exc).__name__}: {exc}")
 
@@ -89,6 +115,8 @@ async def run(full: bool) -> int:
         smoke.ok("leonardoavalanche" not in pres_names, "Leonardo Avalanche still present")
         smoke.ok("lula" in pres_names, "Lula missing from president list")
         smoke.ok("flaviobolsonaro" in pres_names, "Flavio Bolsonaro missing from president list")
+        for candidate in president.get("candidates", []):
+            smoke.ok(bool(candidate.get("photo")), f"president {candidate.get('id')}: missing high-resolution photo")
 
         # 3) Repeat candidate matrix enough times to cross 1,000 assertions without hammering external sources.
         repeats = 10 if full else 2
