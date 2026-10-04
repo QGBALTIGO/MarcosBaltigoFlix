@@ -266,8 +266,7 @@ def format_exterior_channel_message(item: ExteriorCountryResult) -> str:
         "totalização oficial do resultado presidencial pelo TSE.</i>\n\n"
         + "\n".join(rows)
         + "\n\n"
-        f"<b>Fonte do levantamento:</b> {html_lib.escape(item.source_label)}\n"
-        f"{html_lib.escape(item.source_url)}"
+        f"<b>Fonte do levantamento:</b> {html_lib.escape(item.source_label)}"
     )
 
 
