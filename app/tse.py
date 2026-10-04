@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Iterable
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 import httpx
 
@@ -171,15 +174,16 @@ class TSEClient:
         self._last_modified: dict[str, str] = {}
         self._cache: dict[str, ElectionResult] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        self.last_latency_ms: float | None = None
 
     def result_url(self, scope: str = "br", office: str = "presidente") -> str:
         scope = scope.lower().strip()
         office = office.lower().strip()
-        if scope != "br" and scope not in VALID_UFS:
-            raise ValueError("UF inválida. Use BR ou uma sigla como MS, SP, RJ.")
+        if scope not in {"br", "zz"} and scope not in VALID_UFS:
+            raise ValueError("Escopo inválido. Use BR, ZZ (exterior) ou uma UF.")
         if office not in OFFICE_CARGO_CODES:
             raise ValueError("Cargo inválido.")
-        if office != "presidente" and scope == "br":
+        if office != "presidente" and scope in {"br", "zz"}:
             raise ValueError("Este cargo exige uma UF.")
 
         actual_office = "distrital" if office == "estadual" and scope == "df" else office
@@ -195,6 +199,68 @@ class TSEClient:
         return (
             f"{self.settings.tse_base_url}/{self.settings.tse_environment}/"
             f"{self.settings.tse_cycle}/{code}/dados/{scope}/{filename}"
+        )
+
+    async def _get_with_retry(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        attempts: int = 3,
+    ) -> httpx.Response:
+        last_error: Exception | None = None
+        for attempt in range(max(1, attempts)):
+            started = asyncio.get_running_loop().time()
+            try:
+                response = await self.client.get(url, headers=headers or {})
+                self.last_latency_ms = round(
+                    (asyncio.get_running_loop().time() - started) * 1000,
+                    2,
+                )
+                if response.status_code == 429 or 500 <= response.status_code <= 599:
+                    if attempt + 1 < attempts:
+                        retry_after = response.headers.get("retry-after", "").strip()
+                        try:
+                            delay = max(0.1, min(2.0, float(retry_after)))
+                        except ValueError:
+                            delay = (0.2, 0.5, 1.0)[min(attempt, 2)]
+                        log.warning(
+                            "TSE respondeu HTTP %s; nova tentativa em %.2fs",
+                            response.status_code,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                return response
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                last_error = exc
+                if attempt + 1 >= attempts:
+                    raise
+                delay = (0.15, 0.4, 0.8)[min(attempt, 2)]
+                log.warning(
+                    "Falha transitória consultando TSE (%s); nova tentativa em %.2fs",
+                    type(exc).__name__,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+        if last_error:
+            raise last_error
+        raise RuntimeError("Falha inesperada consultando TSE.")
+
+    @staticmethod
+    def _result_signature(result: ElectionResult) -> tuple:
+        return (
+            result.generation_id,
+            result.totalization_date,
+            result.totalization_time,
+            result.sections_counted,
+            result.sections_counted_pct,
+            result.total_votes,
+            result.valid_votes,
+            tuple(
+                (candidate.candidate_id, candidate.votes, candidate.percentage)
+                for candidate in result.candidates
+            ),
         )
 
     async def fetch(
@@ -220,12 +286,12 @@ class TSEClient:
                 if self._last_modified.get(cache_key):
                     headers["If-Modified-Since"] = self._last_modified[cache_key]
 
-            response = await self.client.get(url, headers=headers)
+            response = await self._get_with_retry(url, headers=headers)
             if response.status_code == 304:
                 cached = self._cache.get(cache_key)
                 if cached is None:
                     # Situação defensiva: um 304 sem cache local não é útil; refaça sem validadores.
-                    response = await self.client.get(url)
+                    response = await self._get_with_retry(url)
                 else:
                     return cached, False
 
@@ -234,7 +300,7 @@ class TSEClient:
             result = parse_ea20(data, scope=scope, raw_url=url, cargo_code=cargo_code)
 
             old = self._cache.get(cache_key)
-            changed = old is None or old.generation_id != result.generation_id or old.totalization_time != result.totalization_time
+            changed = old is None or self._result_signature(old) != self._result_signature(result)
             self._cache[cache_key] = result
             if response.headers.get("etag"):
                 self._etag[cache_key] = response.headers["etag"]

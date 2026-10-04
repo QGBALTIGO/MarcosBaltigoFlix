@@ -13,7 +13,7 @@ UF_NAMES = {
     "mg": "Minas Gerais", "pa": "Pará", "pb": "Paraíba", "pr": "Paraná", "pe": "Pernambuco",
     "pi": "Piauí", "rj": "Rio de Janeiro", "rn": "Rio Grande do Norte", "rs": "Rio Grande do Sul",
     "ro": "Rondônia", "rr": "Roraima", "sc": "Santa Catarina", "sp": "São Paulo",
-    "se": "Sergipe", "to": "Tocantins",
+    "se": "Sergipe", "to": "Tocantins", "zz": "Exterior",
 }
 
 

@@ -15,7 +15,8 @@ from .bot import ElectionBot
 from .candidates import CandidateDirectory
 from .config import get_settings
 from .g1_polls import G1PollClient
-from .monitor import monitor_loop
+from .exterior import ExteriorBulletinClient, exterior_bulletin_loop
+from .monitor import ElectionMonitorState, monitor_loop
 from .poll_monitor import g1_poll_loop
 from .result_service import ResultService, is_pre_election
 from .storage import Storage
@@ -36,13 +37,16 @@ candidates = CandidateDirectory(g1_polls)
 results = ResultService(settings, tse, candidates)
 election_bot = ElectionBot(settings, results, storage, g1_polls)
 stop_event = asyncio.Event()
+monitor_state = ElectionMonitorState()
+exterior_client = ExteriorBulletinClient(settings)
 monitor_task: asyncio.Task | None = None
 g1_task: asyncio.Task | None = None
+exterior_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global monitor_task, g1_task
+    global monitor_task, g1_task, exterior_task
     await storage.init()
     try:
         await asyncio.wait_for(
@@ -68,17 +72,43 @@ async def lifespan(app: FastAPI):
         if tg_app.updater:
             await tg_app.updater.start_polling(drop_pending_updates=False)
 
+    # Preflight the Telegram channel immediately. A missing admin permission must
+    # be visible before the presidential totalization starts.
+    if settings.channel_id:
+        ready = await election_bot.check_channel_ready(force=True)
+        if not ready:
+            logging.getLogger(__name__).error(
+                "CANAL NÃO PRONTO PARA O DIA DA ELEIÇÃO: %s",
+                election_bot.channel_error,
+            )
+
     monitor_task = asyncio.create_task(
-        monitor_loop(settings, results, storage, election_bot, stop_event)
+        monitor_loop(
+            settings,
+            results,
+            storage,
+            election_bot,
+            stop_event,
+            monitor_state,
+        )
     )
     g1_task = asyncio.create_task(
         g1_poll_loop(settings, g1_polls, storage, election_bot, stop_event)
+    )
+    exterior_task = asyncio.create_task(
+        exterior_bulletin_loop(
+            settings,
+            storage,
+            election_bot,
+            exterior_client,
+            stop_event,
+        )
     )
 
     yield
 
     stop_event.set()
-    for task in (monitor_task, g1_task):
+    for task in (monitor_task, g1_task, exterior_task):
         if task:
             task.cancel()
             try:
@@ -94,6 +124,7 @@ async def lifespan(app: FastAPI):
     await tse.close()
     await candidates.close()
     await g1_polls.close()
+    await exterior_client.close()
 
 
 app = FastAPI(title="Resultado Eleições 2026", version="2.0.0", lifespan=lifespan)
@@ -120,6 +151,11 @@ async def health():
         "mode": settings.election_mode,
         "telegram_configured": bool(settings.telegram_bot_token),
         "poll_seconds": settings.poll_seconds,
+        "president_poll_seconds": settings.president_poll_seconds,
+        "monitor": monitor_state.to_dict(),
+        "channel": election_bot.channel_health(),
+        "exterior_bu_enabled": settings.exterior_bu_enabled,
+        "exterior_bu_poll_seconds": settings.exterior_bu_poll_seconds,
         "g1_daily_enabled": settings.g1_daily_enabled,
         "g1_daily_time": f"{settings.g1_daily_hour:02d}:{settings.g1_daily_minute:02d}",
         "timezone": settings.timezone,

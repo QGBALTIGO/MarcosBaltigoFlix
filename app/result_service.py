@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import httpx
+from datetime import date, datetime, time as dt_time
+from zoneinfo import ZoneInfo
 
 from .candidates import CandidateDirectory
 from .config import Settings
@@ -9,6 +11,8 @@ from .tse import TSEClient
 
 
 PRE_ELECTION_PHASE = "pre_election"
+BRASILIA = ZoneInfo("America/Sao_Paulo")
+FIRST_ROUND_DATE = date(2026, 10, 4)
 
 
 def is_pre_election(result: ElectionResult) -> bool:
@@ -104,6 +108,16 @@ def build_zero_result(
     )
 
 
+def official_first_round_release_open(now: datetime | None = None) -> bool:
+    now = now or datetime.now(BRASILIA)
+    if now.date() < FIRST_ROUND_DATE:
+        return False
+    if now.date() > FIRST_ROUND_DATE:
+        return True
+    release = datetime.combine(FIRST_ROUND_DATE, dt_time(17, 0), tzinfo=BRASILIA)
+    return now >= release
+
+
 class ResultService:
     """Official TSE result feed with a real-candidacy zero baseline before publication."""
 
@@ -124,6 +138,31 @@ class ResultService:
         office: str = "presidente",
         force: bool = False,
     ) -> tuple[ElectionResult, bool]:
+        # The TSE does not release the 1st-round result files before 17:00 Brasília
+        # on election day. Return a local zero baseline until then instead of
+        # repeatedly requesting a URL that is expected to be 404.
+        if (
+            not force
+            and not self.settings.is_simulation
+            and not official_first_round_release_open()
+        ):
+            directory_scope = "br" if office == "presidente" and scope.lower() == "zz" else scope
+            directory = await self.candidates.list(
+                office,
+                directory_scope,
+                include_poll=False,
+            )
+            return (
+                build_zero_result(
+                    self.settings,
+                    directory,
+                    scope=scope,
+                    office=office,
+                    raw_url=self.tse.result_url(scope, office=office),
+                ),
+                False,
+            )
+
         try:
             return await self.tse.fetch(scope, force=force, office=office)
         except httpx.HTTPStatusError as exc:
@@ -133,9 +172,10 @@ class ResultService:
             if self.settings.is_simulation or exc.response.status_code not in {404, 410}:
                 raise
 
+        directory_scope = "br" if office == "presidente" and scope.lower() == "zz" else scope
         directory = await self.candidates.list(
             office,
-            scope,
+            directory_scope,
             include_poll=False,
         )
         result = build_zero_result(

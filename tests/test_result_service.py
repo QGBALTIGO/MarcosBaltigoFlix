@@ -5,7 +5,13 @@ import pytest
 
 from app.config import Settings
 from app.models import Candidate, ElectionResult
-from app.result_service import PRE_ELECTION_PHASE, ResultService, build_zero_result, is_pre_election
+from app.result_service import (
+    PRE_ELECTION_PHASE,
+    ResultService,
+    build_zero_result,
+    is_pre_election,
+    official_first_round_release_open,
+)
 
 
 def settings(mode: str = "official") -> Settings:
@@ -154,7 +160,7 @@ class TseLiveStub(Tse404Stub):
 
 def test_result_service_falls_back_only_on_unpublished_official_file():
     service = ResultService(settings(), Tse404Stub(), DirectoryStub())
-    result, changed = asyncio.run(service.fetch("br", office="presidente"))
+    result, changed = asyncio.run(service.fetch("br", office="presidente", force=True))
 
     assert changed is False
     assert is_pre_election(result)
@@ -165,14 +171,28 @@ def test_result_service_does_not_hide_real_server_errors():
     service = ResultService(settings(), Tse500Stub(), DirectoryStub())
 
     with pytest.raises(httpx.HTTPStatusError):
-        asyncio.run(service.fetch("br", office="presidente"))
+        asyncio.run(service.fetch("br", office="presidente", force=True))
 
 
 def test_result_service_switches_automatically_to_live_official_result():
     service = ResultService(settings(), TseLiveStub(), DirectoryStub())
-    result, changed = asyncio.run(service.fetch("br", office="presidente"))
+    result, changed = asyncio.run(service.fetch("br", office="presidente", force=True))
 
     assert changed is True
     assert not is_pre_election(result)
     assert result.total_votes == 10
     assert result.candidates[0].votes == 10
+
+
+
+def test_official_release_gate_matches_17h_brasilia():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("America/Sao_Paulo")
+    assert official_first_round_release_open(
+        datetime(2026, 10, 4, 16, 59, 59, tzinfo=tz)
+    ) is False
+    assert official_first_round_release_open(
+        datetime(2026, 10, 4, 17, 0, 0, tzinfo=tz)
+    ) is True

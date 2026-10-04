@@ -119,6 +119,28 @@ class Storage:
             await db.execute("DELETE FROM live_messages WHERE chat_id=?", (chat_id,))
             await db.commit()
 
+    async def get_live(self, chat_id: int) -> LiveMessage | None:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT chat_id, message_id, scope, alerts, last_milestone
+                FROM live_messages
+                WHERE chat_id=? AND enabled=1
+                """,
+                (int(chat_id),),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return LiveMessage(
+                int(row["chat_id"]),
+                int(row["message_id"]),
+                str(row["scope"]),
+                bool(row["alerts"]),
+                int(row["last_milestone"]),
+            )
+
     async def list_live(self) -> list[LiveMessage]:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row
