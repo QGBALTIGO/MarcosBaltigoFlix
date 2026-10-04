@@ -187,8 +187,15 @@ def _extract_exame_candidates(text: str) -> list[ExteriorCandidate]:
         r"(?:\s+votos?)?\s+de\s+(?P<name>[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÀ-ÿ ]{1,35})",
         re.IGNORECASE,
     )
+    register_pattern = re.compile(
+        r"(?:registra|registrou)\s+"
+        r"(?P<votes>[\d.]+|um|uma|dois|duas|três|tres|quatro|cinco|seis|sete|oito|nove|dez)"
+        r"\s+votos?\s+para\s+"
+        r"(?P<name>[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÀ-ÿ ]{1,35})",
+        re.IGNORECASE,
+    )
 
-    for pattern in (verb_pattern, contra_pattern):
+    for pattern in (verb_pattern, contra_pattern, register_pattern):
         for match in pattern.finditer(text):
             name = " ".join(match.group("name").strip(" ,.;").split())
             # Trim narrative prefixes that can precede a candidate name.
