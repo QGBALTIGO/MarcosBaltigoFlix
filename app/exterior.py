@@ -274,6 +274,7 @@ def format_exterior_channel_message(item: ExteriorCountryResult) -> str:
 class ExteriorBulletinClient:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self._last_result_count: int | None = None
         self.client = httpx.AsyncClient(
             timeout=12,
             follow_redirects=True,
@@ -300,7 +301,16 @@ class ExteriorBulletinClient:
         )
         primary = parse_poder360_exterior(poder_html, poder_url) if poder_html else []
         secondary = parse_exame_exterior(exame_html, exame_url) if exame_html else []
-        return _merge_results(primary, secondary)
+        merged = _merge_results(primary, secondary)
+        if self._last_result_count != len(merged):
+            log.info(
+                "Monitor exterior identificou %s países/localidades (%s Poder360, %s Exame).",
+                len(merged),
+                len(primary),
+                len(secondary),
+            )
+            self._last_result_count = len(merged)
+        return merged
 
     async def close(self) -> None:
         await self.client.aclose()
