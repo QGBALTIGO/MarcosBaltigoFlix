@@ -533,6 +533,25 @@ class ElectionBot:
             message_id = 0
 
         if not chat_id or not message_id:
+            # Reuse a message previously created with /publicar when available,
+            # preventing a duplicate presidential post after a deploy.
+            existing = await self.storage.get_live(self.channel_chat_id)
+            if existing and existing.scope == "br":
+                chat_id = self.channel_chat_id
+                message_id = existing.message_id
+                await self.storage.set_state("channel:president:chat_id", str(chat_id))
+                await self.storage.set_state("channel:president:message_id", str(message_id))
+                try:
+                    await edit_rich_html(
+                        token=self.settings.telegram_bot_token,
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        rich_html=self._president_rich(result, shared=True),
+                    )
+                    self.channel_last_update_at = datetime.now(timezone.utc).isoformat()
+                    return True
+                except RichMessageError:
+                    log.exception("Não foi possível adotar a mensagem presidencial existente.")
             return await self._create_president_channel_message(result)
 
         if not changed:
