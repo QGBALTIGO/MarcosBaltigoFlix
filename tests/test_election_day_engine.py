@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from app.bot import ElectionBot
+from app.channel_posts import publish_president_channel_update
 from app.config import Settings
 from app.exterior import (
     format_exterior_channel_message,
@@ -104,7 +105,7 @@ def test_president_poll_is_slow_before_release_and_fast_after_17h():
     assert president_poll_interval(settings(), after) == 2.0
 
 
-def test_monitor_prioritizes_president_and_updates_channel_on_change():
+def test_monitor_prioritizes_president_and_updates_channel_on_change(monkeypatch):
     class ResultStub:
         async def fetch(self, scope, *, office="presidente", force=False):
             assert scope == "br"
@@ -132,6 +133,11 @@ def test_monitor_prioritizes_president_and_updates_channel_on_change():
 
         async def check_channel_ready(self, *, force=False):
             return True
+
+    monkeypatch.setattr(
+        "app.monitor.publish_president_channel_update",
+        BotStub.publish_president_channel_update,
+    )
 
     async def scenario():
         stop = asyncio.Event()
@@ -297,7 +303,7 @@ def test_tse_exterior_president_url_uses_zz_scope():
 
 
 
-def test_monitor_detects_vote_change_even_when_shared_client_says_unchanged():
+def test_monitor_detects_vote_change_even_when_shared_client_says_unchanged(monkeypatch):
     class ResultStub:
         def __init__(self):
             self.calls = 0
@@ -334,6 +340,12 @@ def test_monitor_detects_vote_change_even_when_shared_client_says_unchanged():
 
         async def check_channel_ready(self, *, force=False):
             return True
+
+    monkeypatch.setattr(
+        "app.monitor.publish_president_channel_update",
+        BotStub.publish_president_channel_update,
+    )
+    monkeypatch.setattr("app.monitor.president_poll_interval", lambda _settings: 0.01)
 
     async def scenario():
         cfg = replace(settings(), president_poll_seconds=0.01)
@@ -413,14 +425,16 @@ def test_channel_publication_deduplicates_same_tse_generation(monkeypatch):
         sent = []
 
         async def fake_send_rich_html(**kwargs):
+            assert "<tg-button" not in kwargs["rich_html"]
+            assert "reply_markup" not in kwargs
             sent.append(kwargs["rich_html"])
             return {"message_id": 1000 + len(sent)}
 
-        monkeypatch.setattr("app.bot.send_rich_html", fake_send_rich_html)
+        monkeypatch.setattr("app.channel_posts.send_rich_html", fake_send_rich_html)
 
         first = result()
-        assert await bot.publish_president_channel_update(first) is True
-        assert await bot.publish_president_channel_update(first) is True
+        assert await publish_president_channel_update(bot, first) is True
+        assert await publish_president_channel_update(bot, first) is True
         assert len(sent) == 1
 
         second = result()
@@ -430,7 +444,7 @@ def test_channel_publication_deduplicates_same_tse_generation(monkeypatch):
         second.total_votes = 20
         second.valid_votes = 20
         second.candidates[0].votes = 20
-        assert await bot.publish_president_channel_update(second) is True
+        assert await publish_president_channel_update(bot, second) is True
         assert len(sent) == 2
         assert storage.state["channel:president:last_generation_id"] == "g2"
 
