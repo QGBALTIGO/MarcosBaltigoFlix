@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -483,6 +485,74 @@ class ElectionBot:
         except TelegramError as exc:
             self.channel_ready = False
             self.channel_error = f"{type(exc).__name__}: {exc}"
+            return False
+
+    @staticmethod
+    def _president_channel_fingerprint(result) -> str:
+        payload = {
+            "generation_id": result.generation_id,
+            "totalization_date": result.totalization_date,
+            "totalization_time": result.totalization_time,
+            "sections_counted": int(result.sections_counted or 0),
+            "sections_counted_pct": round(float(result.sections_counted_pct or 0), 6),
+            "total_votes": int(result.total_votes or 0),
+            "valid_votes": int(result.valid_votes or 0),
+            "blank_votes": int(result.blank_votes or 0),
+            "null_votes": int(result.null_votes or 0),
+            "candidates": [
+                {
+                    "id": candidate.candidate_id,
+                    "votes": int(candidate.votes or 0),
+                    "percentage": round(float(candidate.percentage or 0), 6),
+                }
+                for candidate in result.candidates
+            ],
+        }
+        raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    async def publish_president_channel_update(self, result, *, force: bool = False) -> bool:
+        if not self.application or not self.settings.channel_id:
+            return False
+        if not await self.check_channel_ready():
+            return False
+        assert self.channel_chat_id is not None
+
+        fingerprint = self._president_channel_fingerprint(result)
+        state_key = "channel:president:last_post_signature"
+        if not force:
+            last_fingerprint = await self.storage.get_state(state_key)
+            if last_fingerprint == fingerprint:
+                return True
+
+        try:
+            sent = await send_rich_html(
+                token=self.settings.telegram_bot_token,
+                chat_id=self.channel_chat_id,
+                rich_html=self._president_rich(result, shared=True),
+                disable_notification=False,
+            )
+            message_id = int(sent.get("message_id") or 0)
+            if not message_id:
+                raise RichMessageError("Telegram não retornou message_id da atualização presidencial.")
+
+            await self.storage.set_state(state_key, fingerprint)
+            await self.storage.set_state("channel:president:last_post_message_id", str(message_id))
+            await self.storage.set_state("channel:president:last_generation_id", str(result.generation_id or ""))
+            self.channel_last_update_at = datetime.now(timezone.utc).isoformat()
+            log.info(
+                "Nova atualização presidencial enviada ao canal: message_id=%s geração=%s seções=%.4f%% votos=%s",
+                message_id,
+                result.generation_id or "-",
+                float(result.sections_counted_pct or 0),
+                int(result.total_votes or 0),
+            )
+            return True
+        except (RichMessageError, TelegramError) as exc:
+            if "administrator rights" in str(exc).lower() or "not enough rights" in str(exc).lower():
+                self.channel_ready = False
+            self.channel_error = str(exc)
+            log.error("Falha enviando atualização presidencial ao canal: %s", exc)
             return False
 
     async def _create_president_channel_message(self, result) -> bool:
