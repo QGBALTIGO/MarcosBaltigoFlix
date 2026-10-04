@@ -54,6 +54,7 @@ class Settings:
     tse_cycle: str
     tse_president_cargo: str
     poll_seconds: int
+    president_poll_seconds: float
     request_timeout: float
     database_path: str
     admin_ids: set[int]
@@ -68,6 +69,9 @@ class Settings:
     g1_daily_minute: int = 0
     g1_monitor_minutes: int = 15
     g1_daily_institute: str = "Datafolha"
+    exterior_bu_enabled: bool = True
+    exterior_bu_poll_seconds: int = 90
+    exterior_bu_source_url: str = "https://www.poder360.com.br/poder-eleicoes-2026/eleicoes-2026-exterior-resultados/"
 
     @property
     def is_simulation(self) -> bool:
@@ -116,8 +120,9 @@ def get_settings() -> Settings:
         tse_state_election_code=_int("TSE_STATE_ELECTION_CODE", defaults["state_election"]),
         tse_cycle=os.getenv("TSE_CYCLE", "ele2026").strip("/"),
         tse_president_cargo=os.getenv("TSE_PRESIDENT_CARGO", "0001").zfill(4),
-        poll_seconds=max(10, _int("POLL_SECONDS", 20)),
-        request_timeout=max(3.0, _float("REQUEST_TIMEOUT", 12.0)),
+        poll_seconds=max(5, _int("POLL_SECONDS", 10)),
+        president_poll_seconds=min(10.0, max(1.0, _float("PRESIDENT_POLL_SECONDS", 2.0))),
+        request_timeout=max(2.0, _float("REQUEST_TIMEOUT", 8.0)),
         database_path=db_path,
         admin_ids=_admin_ids(),
         port=_int("PORT", 8000),
@@ -131,4 +136,10 @@ def get_settings() -> Settings:
         g1_daily_minute=min(59, max(0, _int("G1_DAILY_MINUTE", 0))),
         g1_monitor_minutes=max(5, _int("G1_MONITOR_MINUTES", 15)),
         g1_daily_institute=os.getenv("G1_DAILY_INSTITUTE", "Datafolha").strip() or "Datafolha",
+        exterior_bu_enabled=_bool("EXTERIOR_BU_ENABLED", True),
+        exterior_bu_poll_seconds=max(30, _int("EXTERIOR_BU_POLL_SECONDS", 90)),
+        exterior_bu_source_url=os.getenv(
+            "EXTERIOR_BU_SOURCE_URL",
+            "https://www.poder360.com.br/poder-eleicoes-2026/eleicoes-2026-exterior-resultados/",
+        ).strip(),
     )
