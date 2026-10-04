@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import html
 import re
 from datetime import date
@@ -546,20 +547,47 @@ async def _bot_api_post(
         raise RichMessageError("Token do Telegram não configurado.")
 
     url = f"https://api.telegram.org/bot{token}/{method}"
-    async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
-        response = await client.post(url, json=payload)
+    last_description = ""
+    async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+        for attempt in range(3):
+            try:
+                response = await client.post(url, json=payload)
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                if attempt >= 2:
+                    raise RichMessageError(
+                        f"Falha de rede no Telegram: {type(exc).__name__}"
+                    ) from exc
+                await asyncio.sleep((0.15, 0.4, 0.8)[attempt])
+                continue
 
-    try:
-        data = response.json()
-    except ValueError as exc:
-        raise RichMessageError(
-            f"Telegram retornou HTTP {response.status_code} sem JSON."
-        ) from exc
+            try:
+                data = response.json()
+            except ValueError as exc:
+                if response.status_code >= 500 and attempt < 2:
+                    await asyncio.sleep((0.15, 0.4, 0.8)[attempt])
+                    continue
+                raise RichMessageError(
+                    f"Telegram retornou HTTP {response.status_code} sem JSON."
+                ) from exc
 
-    if not response.is_success or not data.get("ok"):
-        description = str(data.get("description") or f"HTTP {response.status_code}")
-        raise RichMessageError(description)
-    return data.get("result")
+            if response.is_success and data.get("ok"):
+                return data.get("result")
+
+            last_description = str(
+                data.get("description") or f"HTTP {response.status_code}"
+            )
+            retry_after = (data.get("parameters") or {}).get("retry_after")
+            transient = response.status_code == 429 or response.status_code >= 500
+            if transient and attempt < 2:
+                try:
+                    delay = float(retry_after)
+                except (TypeError, ValueError):
+                    delay = (0.2, 0.5, 1.0)[attempt]
+                await asyncio.sleep(max(0.1, min(delay, 3.0)))
+                continue
+            raise RichMessageError(last_description)
+
+    raise RichMessageError(last_description or "Falha desconhecida no Telegram.")
 
 
 async def edit_rich_html(
