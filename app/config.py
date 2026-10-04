@@ -54,7 +54,6 @@ class Settings:
     tse_cycle: str
     tse_president_cargo: str
     poll_seconds: int
-    president_poll_seconds: float
     request_timeout: float
     database_path: str
     admin_ids: set[int]
@@ -69,6 +68,7 @@ class Settings:
     g1_daily_minute: int = 0
     g1_monitor_minutes: int = 15
     g1_daily_institute: str = "Datafolha"
+    president_poll_seconds: float = 2.0
     exterior_bu_enabled: bool = True
     exterior_bu_poll_seconds: int = 90
     exterior_bu_source_url: str = "https://www.poder360.com.br/poder-eleicoes-2026/eleicoes-2026-exterior-resultados/"
