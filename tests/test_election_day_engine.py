@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from app.bot import ElectionBot
 from app.config import Settings
 from app.exterior import (
     format_exterior_channel_message,
@@ -214,3 +215,64 @@ def test_exame_parser_adds_country_missing_from_primary_source():
     assert [c.votes for c in by_country["Japão"].candidates[:2]] == [24601, 5234]
     assert sorted(c.votes for c in by_country["Indonésia"].candidates) == [8, 19]
     assert sorted(c.votes for c in by_country["Coreia do Sul"].candidates) == [72, 123]
+
+
+
+def test_channel_readiness_requires_post_and_edit_permissions():
+    class TelegramStub:
+        async def get_chat(self, chat_id):
+            return SimpleNamespace(id=-100123)
+
+        async def get_me(self):
+            return SimpleNamespace(id=999)
+
+        async def get_chat_member(self, chat_id, user_id):
+            return SimpleNamespace(
+                status="administrator",
+                can_post_messages=True,
+                can_edit_messages=False,
+            )
+
+    async def scenario():
+        bot = ElectionBot(
+            settings(),
+            SimpleNamespace(),
+            SimpleNamespace(),
+            SimpleNamespace(),
+        )
+        bot.application = SimpleNamespace(bot=TelegramStub())
+        ready = await bot.check_channel_ready(force=True)
+        assert ready is False
+        assert "publicar e editar" in bot.channel_error
+        assert bot.channel_chat_id == -100123
+
+    asyncio.run(scenario())
+
+
+def test_channel_readiness_accepts_admin_with_post_and_edit():
+    class TelegramStub:
+        async def get_chat(self, chat_id):
+            return SimpleNamespace(id=-100123)
+
+        async def get_me(self):
+            return SimpleNamespace(id=999)
+
+        async def get_chat_member(self, chat_id, user_id):
+            return SimpleNamespace(
+                status="administrator",
+                can_post_messages=True,
+                can_edit_messages=True,
+            )
+
+    async def scenario():
+        bot = ElectionBot(
+            settings(),
+            SimpleNamespace(),
+            SimpleNamespace(),
+            SimpleNamespace(),
+        )
+        bot.application = SimpleNamespace(bot=TelegramStub())
+        assert await bot.check_channel_ready(force=True) is True
+        assert bot.channel_error == ""
+
+    asyncio.run(scenario())
