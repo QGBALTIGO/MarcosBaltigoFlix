@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -291,3 +292,64 @@ def test_tse_exterior_president_url_uses_zz_scope():
         assert url.endswith("/dados/zz/zz-c0001-e006257-u.json")
     finally:
         asyncio.run(tse.close())
+
+
+
+def test_monitor_detects_vote_change_even_when_shared_client_says_unchanged():
+    class ResultStub:
+        def __init__(self):
+            self.calls = 0
+
+        async def fetch(self, scope, *, office="presidente", force=False):
+            self.calls += 1
+            current = result()
+            if self.calls >= 2:
+                current.total_votes = 11
+                current.valid_votes = 11
+                current.candidates[0].votes = 11
+            # Simulates the WebApp having consumed the shared TSE client's
+            # internal changed flag before the monitor polls.
+            return current, False
+
+    class StorageStub:
+        async def list_live(self):
+            return []
+
+    class BotStub:
+        def __init__(self, stop_event):
+            self.stop_event = stop_event
+            self.refreshed = 0
+            self.channel_updates = 0
+
+        async def refresh_live_messages(self, scope, value):
+            self.refreshed += 1
+
+        async def ensure_president_channel_message(self, value, *, changed=False):
+            if changed:
+                self.channel_updates += 1
+            if self.channel_updates >= 2:
+                self.stop_event.set()
+            return True
+
+    async def scenario():
+        cfg = replace(settings(), president_poll_seconds=0.01)
+        stop = asyncio.Event()
+        bot = BotStub(stop)
+        state = ElectionMonitorState()
+        await asyncio.wait_for(
+            monitor_loop(
+                cfg,
+                ResultStub(),
+                StorageStub(),
+                bot,
+                stop,
+                state,
+            ),
+            timeout=1.0,
+        )
+        assert bot.refreshed == 2
+        assert bot.channel_updates == 2
+        assert state.last_president_change_at is not None
+        assert state.last_signature is not None
+
+    asyncio.run(scenario())
