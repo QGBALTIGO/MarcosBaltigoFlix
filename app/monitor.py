@@ -26,6 +26,7 @@ class ElectionMonitorState:
     last_president_latency_ms: float | None = None
     last_generation_id: str = ""
     last_sections_pct: float = 0.0
+    last_signature: tuple | None = None
     consecutive_failures: int = 0
     last_error: str = ""
 
@@ -44,6 +45,28 @@ class ElectionMonitorState:
 
 def _iso_now() -> str:
     return datetime.now(BRASILIA).isoformat()
+
+
+def _result_signature(result) -> tuple:
+    return (
+        result.generation_id,
+        result.totalization_date,
+        result.totalization_time,
+        int(result.sections_counted or 0),
+        round(float(result.sections_counted_pct or 0), 6),
+        int(result.total_votes or 0),
+        int(result.valid_votes or 0),
+        int(result.blank_votes or 0),
+        int(result.null_votes or 0),
+        tuple(
+            (
+                candidate.candidate_id,
+                int(candidate.votes or 0),
+                round(float(candidate.percentage or 0), 6),
+            )
+            for candidate in result.candidates
+        ),
+    )
 
 
 def president_poll_interval(settings: Settings, now: datetime | None = None) -> float:
@@ -90,12 +113,13 @@ async def monitor_loop(
     state = state or ElectionMonitorState()
     state.running = True
     next_secondary = 0.0
+    next_channel_reconcile = 0.0
 
     try:
         while not stop_event.is_set():
             cycle_started = perf_counter()
             try:
-                result, changed = await results.fetch("br", office="presidente")
+                result, _client_changed = await results.fetch("br", office="presidente")
                 latency_ms = round((perf_counter() - cycle_started) * 1000, 2)
                 state.last_president_poll_at = _iso_now()
                 state.last_president_latency_ms = latency_ms
@@ -104,15 +128,41 @@ async def monitor_loop(
                 state.consecutive_failures = 0
                 state.last_error = ""
 
+                # IMPORTANT: do not trust the shared TSE client's "changed" flag here.
+                # The public WebApp also calls /api/result and can populate the same
+                # cache between monitor ticks. The monitor owns its own signature so
+                # user traffic can never "consume" a presidential update before the
+                # channel sees it.
+                signature = _result_signature(result)
+                changed = state.last_signature is None or signature != state.last_signature
+                state.last_signature = signature
+
                 if changed:
                     state.last_president_change_at = state.last_president_poll_at
+                    log.info(
+                        "Mudança presidencial detectada: geração=%s seções=%.4f%% votos=%s",
+                        result.generation_id or "-",
+                        float(result.sections_counted_pct or 0),
+                        int(result.total_votes or 0),
+                    )
                     # Update all subscribed chats immediately.
                     await bot.refresh_live_messages("br", result)
 
-                # The official channel is maintained independently of /publicar.
-                # If its post does not exist yet, this creates it as soon as the bot
-                # has the necessary Telegram administrator permissions.
-                await bot.ensure_president_channel_message(result, changed=changed)
+                # Reconcile the official channel every 30s even without a new vote.
+                # This detects a deleted/stale tracked message and recreates it.
+                now_monotonic = asyncio.get_running_loop().time()
+                reconcile = changed or now_monotonic >= next_channel_reconcile
+                channel_ok = await bot.ensure_president_channel_message(
+                    result,
+                    changed=reconcile,
+                )
+                if reconcile:
+                    next_channel_reconcile = now_monotonic + 30.0
+                    log.info(
+                        "Sincronização presidencial do canal: ok=%s changed=%s",
+                        channel_ok,
+                        changed,
+                    )
             except Exception as exc:
                 state.consecutive_failures += 1
                 state.last_error = f"{type(exc).__name__}: {exc}"
