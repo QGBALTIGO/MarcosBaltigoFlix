@@ -8,6 +8,7 @@ from time import perf_counter
 from zoneinfo import ZoneInfo
 
 from .bot import ElectionBot
+from .channel_posts import publish_president_channel_update
 from .config import Settings
 from .result_service import ResultService, is_pre_election
 from .storage import Storage
@@ -149,8 +150,8 @@ async def monitor_loop(
                     await bot.refresh_live_messages("br", result)
 
                     # The official channel is different by design: every official
-                    # TSE generation becomes a new channel post.
-                    channel_ok = await bot.publish_president_channel_update(result)
+                    # TSE generation becomes a new bulletin, without bot controls.
+                    channel_ok = await publish_president_channel_update(bot, result)
                     log.info(
                         "Publicação presidencial no canal: ok=%s geração=%s",
                         channel_ok,
