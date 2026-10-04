@@ -198,7 +198,12 @@ def test_poder360_exterior_parser_structures_candidate_rows():
     assert [item.country for item in items] == ["Nova Zelândia", "Singapura"]
     assert items[0].candidates[0].votes == 234
     assert items[0].candidates[0].percentage == 70.48
-    assert "não é a totalização oficial" in format_exterior_channel_message(items[0])
+    message = format_exterior_channel_message(items[0])
+    assert "não é a totalização oficial" in message
+    assert "<b>Fonte do levantamento:</b>" in message
+    assert "https://source.test" not in message
+    assert "http://" not in message
+    assert "https://" not in message
 
 
 def test_exame_parser_adds_country_missing_from_primary_source():
