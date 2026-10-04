@@ -1133,17 +1133,26 @@ class ElectionBot:
             return
         try:
             result, _ = await self.results.fetch("br")
+            channel_ready = await self.check_channel_ready(force=True)
+            channel_line = (
+                "✅ Canal pronto para publicar e editar."
+                if channel_ready
+                else f"❌ Canal não está pronto: {self.channel_error or 'permissões insuficientes.'}"
+            )
             if is_pre_election(result):
-                await update.effective_message.reply_text(
+                text = (
                     "<b>TSE configurado no ambiente oficial.</b>\n"
-                    "A apuração ainda não foi publicada. As candidaturas reais já estão carregadas com <b>0 votos e 0%</b>.",
-                    parse_mode=ParseMode.HTML,
+                    "A apuração ainda não foi publicada. As candidaturas reais já estão carregadas.\n\n"
+                    + channel_line
                 )
             else:
-                await update.effective_message.reply_text(
-                    f"TSE acessível. Geração <code>{result.generation_id or '-'}</code>, atualização {result.totalization_time or '-'}, seções {result.sections_counted_pct:.2f}%.",
-                    parse_mode=ParseMode.HTML,
+                text = (
+                    f"TSE acessível. Geração <code>{result.generation_id or '-'}</code>, "
+                    f"atualização {result.totalization_time or '-'}, "
+                    f"seções {result.sections_counted_pct:.2f}%.\n\n"
+                    + channel_line
                 )
+            await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
         except Exception as exc:
             await update.effective_message.reply_text(f"Falha ao consultar TSE: {type(exc).__name__}")
 
@@ -1277,6 +1286,9 @@ class ElectionBot:
     async def publish_g1_poll(self, poll: G1Poll, headline: str) -> bool:
         if not self.application or not self.settings.channel_id:
             log.warning("Canal ou aplicação Telegram indisponível para publicar pesquisa.")
+            return False
+        if not await self.check_channel_ready():
+            log.warning("Publicação no canal suspensa: %s", self.channel_error)
             return False
 
         # Bot API 10.3 Rich Messages: usa tabela nativa/colunas no canal.
