@@ -179,11 +179,11 @@ class TSEClient:
     def result_url(self, scope: str = "br", office: str = "presidente") -> str:
         scope = scope.lower().strip()
         office = office.lower().strip()
-        if scope != "br" and scope not in VALID_UFS:
-            raise ValueError("UF inválida. Use BR ou uma sigla como MS, SP, RJ.")
+        if scope not in {"br", "zz"} and scope not in VALID_UFS:
+            raise ValueError("Escopo inválido. Use BR, ZZ (exterior) ou uma UF.")
         if office not in OFFICE_CARGO_CODES:
             raise ValueError("Cargo inválido.")
-        if office != "presidente" and scope == "br":
+        if office != "presidente" and scope in {"br", "zz"}:
             raise ValueError("Este cargo exige uma UF.")
 
         actual_office = "distrital" if office == "estadual" and scope == "df" else office
