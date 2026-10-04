@@ -247,9 +247,10 @@ def format_exterior_channel_message(item: ExteriorCountryResult) -> str:
         if candidate.percentage is not None:
             pct = f" · {candidate.percentage:.2f}%".replace(".", ",")
         party = f" ({candidate.party})" if candidate.party else ""
+        votes_text = f"{candidate.votes:,}".replace(",", ".")
         rows.append(
             f"• <b>{html_lib.escape(candidate.name)}</b>{html_lib.escape(party)} — "
-            f"{candidate.votes:,} votos{pct}".replace(",", ".")
+            f"{votes_text} votos{pct}"
         )
 
     return (
