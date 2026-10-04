@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -331,8 +332,7 @@ def test_monitor_detects_vote_change_even_when_shared_client_says_unchanged():
             return True
 
     async def scenario():
-        cfg = settings()
-        cfg.president_poll_seconds = 0.01
+        cfg = replace(settings(), president_poll_seconds=0.01)
         stop = asyncio.Event()
         bot = BotStub(stop)
         state = ElectionMonitorState()
