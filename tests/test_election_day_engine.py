@@ -125,10 +125,12 @@ def test_monitor_prioritizes_president_and_updates_channel_on_change():
             assert scope == "br"
             self.refreshed += 1
 
-        async def ensure_president_channel_message(self, value, *, changed=False):
-            assert changed is True
+        async def publish_president_channel_update(self, value):
             self.channel_updates += 1
             self.stop_event.set()
+            return True
+
+        async def check_channel_ready(self, *, force=False):
             return True
 
     async def scenario():
@@ -324,11 +326,13 @@ def test_monitor_detects_vote_change_even_when_shared_client_says_unchanged():
         async def refresh_live_messages(self, scope, value):
             self.refreshed += 1
 
-        async def ensure_president_channel_message(self, value, *, changed=False):
-            if changed:
-                self.channel_updates += 1
+        async def publish_president_channel_update(self, value):
+            self.channel_updates += 1
             if self.channel_updates >= 2:
                 self.stop_event.set()
+            return True
+
+        async def check_channel_ready(self, *, force=False):
             return True
 
     async def scenario():
@@ -374,3 +378,60 @@ def test_tse_rejects_stale_totalization_regression():
 
     assert TSEClient._is_stale_regression(stale, old) is True
     assert TSEClient._is_stale_regression(newer, old) is False
+
+
+
+def test_channel_publication_deduplicates_same_tse_generation(monkeypatch):
+    class StorageStub:
+        def __init__(self):
+            self.state = {}
+
+        async def get_state(self, key):
+            return self.state.get(key)
+
+        async def set_state(self, key, value):
+            self.state[key] = value
+
+    class TelegramStub:
+        async def get_chat(self, chat_id):
+            return SimpleNamespace(id=-100123)
+
+        async def get_me(self):
+            return SimpleNamespace(id=999)
+
+        async def get_chat_member(self, chat_id, user_id):
+            return SimpleNamespace(
+                status="administrator",
+                can_post_messages=True,
+                can_edit_messages=True,
+            )
+
+    async def scenario():
+        storage = StorageStub()
+        bot = ElectionBot(settings(), SimpleNamespace(), storage, SimpleNamespace())
+        bot.application = SimpleNamespace(bot=TelegramStub())
+        sent = []
+
+        async def fake_send_rich_html(**kwargs):
+            sent.append(kwargs["rich_html"])
+            return {"message_id": 1000 + len(sent)}
+
+        monkeypatch.setattr("app.bot.send_rich_html", fake_send_rich_html)
+
+        first = result()
+        assert await bot.publish_president_channel_update(first) is True
+        assert await bot.publish_president_channel_update(first) is True
+        assert len(sent) == 1
+
+        second = result()
+        second.generation_id = "g2"
+        second.sections_counted = 2
+        second.sections_counted_pct = 2.0
+        second.total_votes = 20
+        second.valid_votes = 20
+        second.candidates[0].votes = 20
+        assert await bot.publish_president_channel_update(second) is True
+        assert len(sent) == 2
+        assert storage.state["channel:president:last_generation_id"] == "g2"
+
+    asyncio.run(scenario())
