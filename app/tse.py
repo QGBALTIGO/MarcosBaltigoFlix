@@ -263,6 +263,19 @@ class TSEClient:
             ),
         )
 
+    @staticmethod
+    def _is_stale_regression(new: ElectionResult, old: ElectionResult | None) -> bool:
+        if old is None:
+            return False
+        # Totalization progress should not move backwards. Different TSE/CDN nodes
+        # can briefly serve an older EA20 generation; never let that stale copy
+        # overwrite a newer result already seen by this process.
+        if int(new.sections_counted or 0) < int(old.sections_counted or 0):
+            return True
+        if float(new.sections_counted_pct or 0) + 1e-9 < float(old.sections_counted_pct or 0):
+            return True
+        return False
+
     async def fetch(
         self,
         scope: str = "br",
@@ -300,6 +313,18 @@ class TSEClient:
             result = parse_ea20(data, scope=scope, raw_url=url, cargo_code=cargo_code)
 
             old = self._cache.get(cache_key)
+            if self._is_stale_regression(result, old):
+                log.warning(
+                    "Ignorando regressão antiga do TSE para %s/%s: %.4f%% -> %.4f%% (%s -> %s seções)",
+                    office,
+                    scope,
+                    float(old.sections_counted_pct or 0),
+                    float(result.sections_counted_pct or 0),
+                    int(old.sections_counted or 0),
+                    int(result.sections_counted or 0),
+                )
+                return old, False
+
             changed = old is None or self._result_signature(old) != self._result_signature(result)
             self._cache[cache_key] = result
             if response.headers.get("etag"):
