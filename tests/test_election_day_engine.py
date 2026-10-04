@@ -276,3 +276,13 @@ def test_channel_readiness_accepts_admin_with_post_and_edit():
         assert bot.channel_error == ""
 
     asyncio.run(scenario())
+
+
+
+def test_tse_exterior_president_url_uses_zz_scope():
+    tse = TSEClient(settings())
+    try:
+        url = tse.result_url("zz", office="presidente")
+        assert url.endswith("/dados/zz/zz-c0001-e006257-u.json")
+    finally:
+        asyncio.run(tse.close())
