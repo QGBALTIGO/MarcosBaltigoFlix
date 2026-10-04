@@ -171,12 +171,12 @@ def test_result_service_does_not_hide_real_server_errors():
     service = ResultService(settings(), Tse500Stub(), DirectoryStub())
 
     with pytest.raises(httpx.HTTPStatusError):
-        asyncio.run(service.fetch("br", office="presidente"))
+        asyncio.run(service.fetch("br", office="presidente", force=True))
 
 
 def test_result_service_switches_automatically_to_live_official_result():
     service = ResultService(settings(), TseLiveStub(), DirectoryStub())
-    result, changed = asyncio.run(service.fetch("br", office="presidente"))
+    result, changed = asyncio.run(service.fetch("br", office="presidente", force=True))
 
     assert changed is True
     assert not is_pre_election(result)
