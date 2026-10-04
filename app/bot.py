@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import time
+from datetime import datetime, timezone
 import re
 import unicodedata
 
@@ -359,6 +361,11 @@ class ElectionBot:
         self.storage = storage
         self.g1_polls = g1_polls
         self.application: Application | None = None
+        self.channel_ready: bool | None = None
+        self.channel_error: str = ""
+        self.channel_chat_id: int | None = None
+        self.channel_last_checked_monotonic: float = 0.0
+        self.channel_last_update_at: str = ""
 
     async def _record_user(self, update: Update) -> None:
         user = getattr(update, "effective_user", None)
@@ -429,6 +436,153 @@ class ElectionBot:
                 await update.effective_message.reply_text("Ação restrita aos administradores configurados.")
             return False
         return True
+
+    def channel_health(self) -> dict:
+        return {
+            "configured": bool(self.settings.channel_id),
+            "ready": self.channel_ready,
+            "error": self.channel_error,
+            "chat_id_resolved": self.channel_chat_id is not None,
+            "last_update_at": self.channel_last_update_at or None,
+        }
+
+    async def check_channel_ready(self, *, force: bool = False) -> bool:
+        if not self.application or not self.settings.channel_id:
+            self.channel_ready = False
+            self.channel_error = "CHANNEL_ID ou aplicação Telegram não configurados."
+            return False
+
+        now = time.monotonic()
+        if (
+            not force
+            and self.channel_ready is not None
+            and now - self.channel_last_checked_monotonic < 60
+        ):
+            return bool(self.channel_ready)
+
+        self.channel_last_checked_monotonic = now
+        try:
+            chat = await self.application.bot.get_chat(self.settings.channel_id)
+            me = await self.application.bot.get_me()
+            member = await self.application.bot.get_chat_member(chat.id, me.id)
+            status = str(getattr(member, "status", "")).lower()
+            can_post = status == "creator" or bool(getattr(member, "can_post_messages", False))
+            can_edit = status == "creator" or bool(getattr(member, "can_edit_messages", False))
+            if status not in {"creator", "administrator"} or not can_post or not can_edit:
+                self.channel_ready = False
+                self.channel_chat_id = int(chat.id)
+                self.channel_error = (
+                    "O bot precisa ser administrador do canal com permissões para "
+                    "publicar e editar mensagens."
+                )
+                return False
+            self.channel_ready = True
+            self.channel_chat_id = int(chat.id)
+            self.channel_error = ""
+            return True
+        except TelegramError as exc:
+            self.channel_ready = False
+            self.channel_error = f"{type(exc).__name__}: {exc}"
+            return False
+
+    async def _create_president_channel_message(self, result) -> bool:
+        if not await self.check_channel_ready(force=True):
+            return False
+        assert self.channel_chat_id is not None
+        try:
+            sent = await send_rich_html(
+                token=self.settings.telegram_bot_token,
+                chat_id=self.channel_chat_id,
+                rich_html=self._president_rich(result, shared=True),
+                disable_notification=True,
+            )
+            message_id = int(sent.get("message_id") or 0)
+            if not message_id:
+                raise RichMessageError("Telegram não retornou message_id do canal.")
+            await self.storage.set_state("channel:president:chat_id", str(self.channel_chat_id))
+            await self.storage.set_state("channel:president:message_id", str(message_id))
+            self.channel_last_update_at = datetime.now(timezone.utc).isoformat()
+            try:
+                await self.application.bot.pin_chat_message(
+                    self.channel_chat_id,
+                    message_id,
+                    disable_notification=True,
+                )
+            except TelegramError:
+                log.info("Mensagem presidencial criada; não foi possível fixá-la.")
+            return True
+        except (RichMessageError, TelegramError) as exc:
+            self.channel_ready = False
+            self.channel_error = str(exc)
+            log.error("Falha criando mensagem presidencial no canal: %s", exc)
+            return False
+
+    async def ensure_president_channel_message(self, result, *, changed: bool = False) -> bool:
+        if not self.settings.channel_id or not self.application:
+            return False
+        if not await self.check_channel_ready():
+            return False
+
+        raw_chat_id = await self.storage.get_state("channel:president:chat_id")
+        raw_message_id = await self.storage.get_state("channel:president:message_id")
+        try:
+            chat_id = int(raw_chat_id or 0)
+            message_id = int(raw_message_id or 0)
+        except ValueError:
+            chat_id = 0
+            message_id = 0
+
+        if not chat_id or not message_id:
+            return await self._create_president_channel_message(result)
+
+        if not changed:
+            return True
+
+        try:
+            await edit_rich_html(
+                token=self.settings.telegram_bot_token,
+                chat_id=chat_id,
+                message_id=message_id,
+                rich_html=self._president_rich(result, shared=True),
+            )
+            self.channel_last_update_at = datetime.now(timezone.utc).isoformat()
+            return True
+        except RichMessageError as exc:
+            message = str(exc).lower()
+            if (
+                "message to edit not found" in message
+                or "message_id_invalid" in message
+                or "message identifier is not specified" in message
+            ):
+                await self.storage.set_state("channel:president:message_id", "")
+                return await self._create_president_channel_message(result)
+            if "message is not modified" in message:
+                return True
+            if "administrator rights" in message or "not enough rights" in message:
+                self.channel_ready = False
+                self.channel_error = str(exc)
+            log.error("Falha atualizando presidência no canal: %s", exc)
+            return False
+
+    async def publish_exterior_update(self, text: str) -> bool:
+        if not self.application or not await self.check_channel_ready():
+            return False
+        assert self.channel_chat_id is not None
+        try:
+            await self.application.bot.send_message(
+                chat_id=self.channel_chat_id,
+                text=text,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+                disable_notification=False,
+            )
+            return True
+        except TelegramError as exc:
+            if "administrator rights" in str(exc).lower():
+                self.channel_ready = False
+            self.channel_error = str(exc)
+            log.error("Falha publicando exterior no canal: %s", exc)
+            return False
 
     async def build(self) -> Application | None:
         token = self.settings.telegram_bot_token
