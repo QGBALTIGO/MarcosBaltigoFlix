@@ -133,9 +133,10 @@ class ResultService:
             if self.settings.is_simulation or exc.response.status_code not in {404, 410}:
                 raise
 
+        directory_scope = "br" if office == "presidente" and scope.lower() == "zz" else scope
         directory = await self.candidates.list(
             office,
-            scope,
+            directory_scope,
             include_poll=False,
         )
         result = build_zero_result(
