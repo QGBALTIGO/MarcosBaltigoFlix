@@ -95,6 +95,29 @@ Antes de o TSE publicar os arquivos de totalização, o sistema monta uma pré-a
 
 O cliente usa os arquivos EA20 e validadores HTTP `ETag`/`Last-Modified`.
 
+### Motor do dia da eleição
+
+- antes das 17:00 de Brasília, a Presidência faz uma consulta conservadora por minuto para não martelar um arquivo oficial ainda não publicado;
+- a partir das 17:00, a Presidência passa para `PRESIDENT_POLL_SECONDS` (padrão: 2 segundos);
+- respostas 429, 5xx, timeout e falhas transitórias têm retry curto;
+- mudanças são detectadas também por seções, votos totais e votos/percentuais por candidatura, não apenas pelo horário do arquivo;
+- a mensagem presidencial do `CHANNEL_ID` é criada/recuperada automaticamente e editada no mesmo lugar;
+- o bot faz preflight das permissões do canal e expõe a situação em `/api/health`;
+- boletins já divulgados no exterior podem ser publicados separadamente e são rotulados explicitamente como recortes de BU, não como totalização oficial.
+
+Variáveis principais:
+
+```env
+ELECTION_MODE=official
+PRESIDENT_POLL_SECONDS=2
+POLL_SECONDS=10
+REQUEST_TIMEOUT=8
+EXTERIOR_BU_ENABLED=true
+EXTERIOR_BU_POLL_SECONDS=90
+```
+
+Para o canal automático funcionar, o bot precisa ser administrador do `CHANNEL_ID` com permissão para publicar e editar mensagens.
+
 ## Railway
 
 O serviço é compatível com Docker/Railway. Para persistir o SQLite entre deploys, monte um Volume em:
