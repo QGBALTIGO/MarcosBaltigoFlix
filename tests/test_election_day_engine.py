@@ -353,3 +353,24 @@ def test_monitor_detects_vote_change_even_when_shared_client_says_unchanged():
         assert state.last_signature is not None
 
     asyncio.run(scenario())
+
+
+
+def test_tse_rejects_stale_totalization_regression():
+    old = result()
+    old.sections_counted = 22
+    old.sections_counted_pct = 21.96
+    old.total_votes = 26_377_493
+
+    stale = result()
+    stale.sections_counted = 20
+    stale.sections_counted_pct = 19.54
+    stale.total_votes = 23_473_571
+
+    newer = result()
+    newer.sections_counted = 24
+    newer.sections_counted_pct = 23.10
+    newer.total_votes = 27_000_000
+
+    assert TSEClient._is_stale_regression(stale, old) is True
+    assert TSEClient._is_stale_regression(newer, old) is False
