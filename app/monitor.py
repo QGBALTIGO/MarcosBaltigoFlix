@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from .bot import ElectionBot
 from .config import Settings
-from .result_service import ResultService
+from .result_service import ResultService, is_pre_election
 from .storage import Storage
 
 log = logging.getLogger(__name__)
@@ -127,6 +127,14 @@ async def monitor_loop(
                 next_secondary = now_monotonic + settings.poll_seconds
 
             interval = president_poll_interval(settings)
+            # Right after 17:00 the CDN may take a short moment to expose EA20.
+            # While the zero baseline is still active, cap retries at 5 seconds;
+            # once the official file is live, switch to the configured 2-second loop.
+            try:
+                if interval <= settings.president_poll_seconds and is_pre_election(result):
+                    interval = max(5.0, settings.president_poll_seconds)
+            except UnboundLocalError:
+                pass
             elapsed = perf_counter() - cycle_started
             delay = max(0.05, interval - elapsed)
             try:
