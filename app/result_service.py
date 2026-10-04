@@ -141,7 +141,11 @@ class ResultService:
         # The TSE does not release the 1st-round result files before 17:00 Brasília
         # on election day. Return a local zero baseline until then instead of
         # repeatedly requesting a URL that is expected to be 404.
-        if not self.settings.is_simulation and not official_first_round_release_open():
+        if (
+            not force
+            and not self.settings.is_simulation
+            and not official_first_round_release_open()
+        ):
             directory_scope = "br" if office == "presidente" and scope.lower() == "zz" else scope
             directory = await self.candidates.list(
                 office,
