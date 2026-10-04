@@ -205,11 +205,12 @@ def test_exame_parser_adds_country_missing_from_primary_source():
     <ul>
       <li>Japão: Flávio somou 24.601 votos nos boletins. Lula recebeu 5.234 votos.</li>
       <li>Indonésia: Flávio somou 19 votos. Lula recebeu oito votos.</li>
+      <li>Coreia do Sul: o boletim registra 123 votos para Lula. Flávio recebeu 72 votos.</li>
     </ul>
     """
     items = parse_exame_exterior(html, "https://exame.test")
-    assert [item.country for item in items] == ["Japão", "Indonésia"]
-    japan = items[0]
-    assert [c.votes for c in japan.candidates[:2]] == [24601, 5234]
-    indonesia = items[1]
-    assert sorted(c.votes for c in indonesia.candidates) == [8, 19]
+    by_country = {item.country: item for item in items}
+    assert set(by_country) == {"Japão", "Indonésia", "Coreia do Sul"}
+    assert [c.votes for c in by_country["Japão"].candidates[:2]] == [24601, 5234]
+    assert sorted(c.votes for c in by_country["Indonésia"].candidates) == [8, 19]
+    assert sorted(c.votes for c in by_country["Coreia do Sul"].candidates) == [72, 123]
