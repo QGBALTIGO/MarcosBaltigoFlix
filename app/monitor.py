@@ -145,24 +145,24 @@ async def monitor_loop(
                         float(result.sections_counted_pct or 0),
                         int(result.total_votes or 0),
                     )
-                    # Update all subscribed chats immediately.
+                    # WebApp/inline subscriptions keep being edited in place.
                     await bot.refresh_live_messages("br", result)
 
-                # Reconcile the official channel every 30s even without a new vote.
-                # This detects a deleted/stale tracked message and recreates it.
-                now_monotonic = asyncio.get_running_loop().time()
-                reconcile = changed or now_monotonic >= next_channel_reconcile
-                channel_ok = await bot.ensure_president_channel_message(
-                    result,
-                    changed=reconcile,
-                )
-                if reconcile:
-                    next_channel_reconcile = now_monotonic + 30.0
+                    # The official channel is different by design: every official
+                    # TSE generation becomes a new channel post.
+                    channel_ok = await bot.publish_president_channel_update(result)
                     log.info(
-                        "Sincronização presidencial do canal: ok=%s changed=%s",
+                        "Publicação presidencial no canal: ok=%s geração=%s",
                         channel_ok,
-                        changed,
+                        result.generation_id or "-",
                     )
+
+                # Even without a new result, re-check channel permissions periodically
+                # so a temporary Telegram/admin issue is noticed and recovered.
+                now_monotonic = asyncio.get_running_loop().time()
+                if now_monotonic >= next_channel_reconcile:
+                    await bot.check_channel_ready(force=True)
+                    next_channel_reconcile = now_monotonic + 30.0
             except Exception as exc:
                 state.consecutive_failures += 1
                 state.last_error = f"{type(exc).__name__}: {exc}"
