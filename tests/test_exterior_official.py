@@ -133,11 +133,13 @@ def test_wrong_index_and_unpublished_sections_do_not_publish():
             mock_client(client,counts,index,overrides)
             try:
                 with patch('app.exterior_official._closed',return_value=True):
-                    assert await client.fetch()==[]
+                    items = await client.fetch()
                 if mode=='missing':
-                    assert len(counts)==2
+                    assert len(items)==1 and items[0].country=='Japão'
+                    assert len(counts)==4
                     assert client._probe_after['29491']>0
                 else:
+                    assert items==[]
                     assert client.health['last_error']
             finally:
                 await client.close()
@@ -193,8 +195,8 @@ def test_unmapped_unpublished_city_does_not_block_closed_localities():
         try:
             with patch('app.exterior_official._closed', side_effect=lambda name,now: None if name=='Cidade sem fuso cadastrado' else True):
                 items=await client.fetch()
-            assert [i.locality_code for i in items]==['29742']
-            assert '29742' in calls[1] and calls[-1]==missing
+            assert [i.country for i in items]==['Japão']
+            assert missing in calls and any('29742' in c for c in calls)
         finally:
             await client.close()
     asyncio.run(scenario())
@@ -215,7 +217,7 @@ def test_publisher_deduplicates_restart_and_reaches_localities_after_batch_limit
         class Bot:
             exterior_last_message_id=123
             async def check_channel_ready(self): return True
-            async def publish_exterior_update(self,text): sent.append(text); return True
+            async def publish_exterior_update(self,text,message_id=None): sent.append(text); return True
         class Client:
             async def fetch(self): stop.set(); return rows
         with patch('app.exterior.asyncio.sleep'):

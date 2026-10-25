@@ -63,6 +63,10 @@ class ExteriorCountryResult:
     blank: int = 0
     null: int = 0
     official_bu: bool = False
+    country_group: bool = False
+    locality_codes: tuple[str, ...] = ()
+    localities_counted: int = 0
+    localities_total: int = 0
 
     @property
     def fingerprint(self) -> str:
@@ -74,6 +78,8 @@ class ExteriorCountryResult:
                 "coverage": [self.sections_counted, self.sections_total],
                 "blank": self.blank,
                 "null": self.null,
+                "country_group": self.country_group,
+                "localities": [self.localities_counted, self.localities_total],
                 "candidates": [
                     (c.name, c.party, c.votes, c.percentage)
                     for c in self.candidates
@@ -273,11 +279,14 @@ def format_exterior_channel_message(item: ExteriorCountryResult) -> str:
         )
 
     if item.official_bu:
+        localities = (f'\nLocalidades com BUs: <b>{item.localities_counted}/{item.localities_total}</b>.'
+                      if item.country_group else '')
         return (
             f"🌍 <b>Exterior • {html_lib.escape(item.country)}</b>\n"
             f"<b>{item.round}º turno · Presidente</b>\n\n"
             + "\n".join(rows)
             + f"\n\nBUs conferidos: <b>{item.sections_counted}/{item.sections_total}</b> seções principais."
+            + localities
             + f"\nBrancos: {item.blank} · Nulos: {item.null}"
             + '\n<i>Recorte dos boletins oficiais; não é a totalização nacional.</i>'
             + f'\n<a href="{html_lib.escape(item.source_url, quote=True)}">Fonte: TSE · boletins de urna</a>'
@@ -358,25 +367,41 @@ async def exterior_bulletin_loop(
                 if await bot.check_channel_ready():
                     posted = 0
                     for item in items:
-                        key = f"exterior:bu:r{settings.election_round}:" + hashlib.sha1(
+                        prefix = 'country' if item.country_group else 'bu'
+                        key = f"exterior:{prefix}:r{settings.election_round}:" + hashlib.sha1(
                             item.country.casefold().encode("utf-8")
                         ).hexdigest()
                         previous = await storage.get_state(key)
-                        if previous == item.fingerprint:
-                            continue
-                        if await bot.publish_exterior_update(
-                            format_exterior_channel_message(item)
-                        ):
-                            await storage.set_state(key, item.fingerprint)
+                        text = format_exterior_channel_message(item)
+                        if item.country_group:
+                            try:
+                                saved = json.loads(previous) if previous else {}
+                            except (ValueError, TypeError):
+                                saved = {}
+                            if saved.get('fingerprint') == item.fingerprint:
+                                continue
+                            message_id = saved.get('message_id')
+                            if not isinstance(message_id,int):message_id = None
+                            sent = await bot.publish_exterior_update(text, message_id=message_id)
+                        else:
+                            if previous == item.fingerprint:
+                                continue
+                            sent = await bot.publish_exterior_update(text)
+                        if sent:
+                            value = (json.dumps({'fingerprint':item.fingerprint,
+                                'message_id':getattr(bot,'exterior_last_message_id',None)})
+                                if item.country_group else item.fingerprint)
+                            await storage.set_state(key, value)
                             await storage.set_state('exterior:last_post', json.dumps({
                                 'at': now.isoformat(), 'locality': item.country,
                                 'round': item.round, 'official_bu': item.official_bu,
                                 'sections': item.sections_counted,
+                                'country_group': item.country_group,
                                 'message_id': getattr(bot, 'exterior_last_message_id', None),
                             }, ensure_ascii=False))
                             log.info('Boletim exterior publicado: %s; turno=%s; secoes=%s/%s', item.country, item.round, item.sections_counted, item.sections_total)
                             posted += 1
-                            await asyncio.sleep(0.35)
+                            await asyncio.sleep(1.1)
                             if posted >= 12:
                                 break
         except Exception:

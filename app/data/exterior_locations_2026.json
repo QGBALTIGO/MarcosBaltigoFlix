@@ -1,0 +1,953 @@
+{
+  "pleito": 3221,
+  "date": "2026-10-25",
+  "sources": [
+    {
+      "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2026.zip",
+      "file": "eleitorado_local_votacao_2026_ZZ.csv",
+      "sha256": "1ae0da6c977f42e1de2f199f6f78148500b39af54af415c7fa495b152a8156cc"
+    },
+    {
+      "url": "https://www.tse.jus.br/hotsites/locais-votacao-exterior/"
+    },
+    {
+      "url": "https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/3221/config/zz/zz-p003221-cs.json"
+    },
+    {
+      "url": "https://www.gov.br/mre/pt-br/embaixada-liubliana/servicos-consulares-1/servico-eleitoral"
+    }
+  ],
+  "note": "Locality codes/names come from TSE. Country grouping and IANA time zones are geographic classification, not a TSE country result.",
+  "localities": {
+    "29173": {
+      "name": "KATMANDU",
+      "country": "Nepal",
+      "timezone": "Asia/Kathmandu"
+    },
+    "29254": {
+      "name": "ABIDJÃ",
+      "country": "Costa do Marfim",
+      "timezone": "Africa/Abidjan"
+    },
+    "29262": {
+      "name": "ABU DHABI",
+      "country": "Emirados Árabes Unidos",
+      "timezone": "Asia/Dubai"
+    },
+    "29270": {
+      "name": "ACCRA",
+      "country": "Gana",
+      "timezone": "Africa/Accra"
+    },
+    "29289": {
+      "name": "AMÃ",
+      "country": "Jordânia",
+      "timezone": "Asia/Amman"
+    },
+    "29297": {
+      "name": "ANCARA",
+      "country": "Turquia",
+      "timezone": "Europe/Istanbul"
+    },
+    "29300": {
+      "name": "ARGEL",
+      "country": "Argélia",
+      "timezone": "Africa/Algiers"
+    },
+    "29319": {
+      "name": "ARTIGAS",
+      "country": "Uruguai",
+      "timezone": "America/Montevideo"
+    },
+    "29327": {
+      "name": "ASSUNÇÃO",
+      "country": "Paraguai",
+      "timezone": "America/Asuncion"
+    },
+    "29335": {
+      "name": "ATENAS",
+      "country": "Grécia",
+      "timezone": "Europe/Athens"
+    },
+    "29343": {
+      "name": "BANGKOK",
+      "country": "Tailândia",
+      "timezone": "Asia/Bangkok"
+    },
+    "29351": {
+      "name": "BARCELONA",
+      "country": "Espanha",
+      "timezone": "Europe/Madrid"
+    },
+    "29360": {
+      "name": "BEIRUTE",
+      "country": "Líbano",
+      "timezone": "Asia/Beirut"
+    },
+    "29378": {
+      "name": "BELGRADO",
+      "country": "Sérvia",
+      "timezone": "Europe/Belgrade"
+    },
+    "29386": {
+      "name": "BERLIM",
+      "country": "Alemanha",
+      "timezone": "Europe/Berlin"
+    },
+    "29394": {
+      "name": "BISSAU",
+      "country": "Guiné-Bissau",
+      "timezone": "Africa/Bissau"
+    },
+    "29408": {
+      "name": "BOGOTÁ",
+      "country": "Colômbia",
+      "timezone": "America/Bogota"
+    },
+    "29416": {
+      "name": "BOSTON",
+      "country": "Estados Unidos",
+      "timezone": "America/New_York"
+    },
+    "29424": {
+      "name": "BRIDGETOWN",
+      "country": "Barbados",
+      "timezone": "America/Barbados"
+    },
+    "29432": {
+      "name": "BRUXELAS",
+      "country": "Bélgica",
+      "timezone": "Europe/Brussels"
+    },
+    "29440": {
+      "name": "BUCARESTE",
+      "country": "Romênia",
+      "timezone": "Europe/Bucharest"
+    },
+    "29459": {
+      "name": "BUDAPESTE",
+      "country": "Hungria",
+      "timezone": "Europe/Budapest"
+    },
+    "29467": {
+      "name": "BUENOS AIRES",
+      "country": "Argentina",
+      "timezone": "America/Argentina/Buenos_Aires"
+    },
+    "29475": {
+      "name": "CAIENA",
+      "country": "Guiana Francesa",
+      "timezone": "America/Cayenne"
+    },
+    "29483": {
+      "name": "CAIRO",
+      "country": "Egito",
+      "timezone": "Africa/Cairo"
+    },
+    "29491": {
+      "name": "CAMBERRA",
+      "country": "Austrália",
+      "timezone": "Australia/Sydney"
+    },
+    "29505": {
+      "name": "CARACAS",
+      "country": "Venezuela",
+      "timezone": "America/Caracas"
+    },
+    "29513": {
+      "name": "CHICAGO",
+      "country": "Estados Unidos",
+      "timezone": "America/Chicago"
+    },
+    "29521": {
+      "name": "CHUY",
+      "country": "Uruguai",
+      "timezone": "America/Montevideo"
+    },
+    "29530": {
+      "name": "CIDADE DO CABO",
+      "country": "África do Sul",
+      "timezone": "Africa/Johannesburg"
+    },
+    "29548": {
+      "name": "SINGAPURA",
+      "country": "Singapura",
+      "timezone": "Asia/Singapore"
+    },
+    "29556": {
+      "name": "CIUDAD DEL ESTE",
+      "country": "Paraguai",
+      "timezone": "America/Asuncion"
+    },
+    "29564": {
+      "name": "CIUDAD GUAYANA",
+      "country": "Venezuela",
+      "timezone": "America/Caracas"
+    },
+    "29572": {
+      "name": "COCHABAMBA",
+      "country": "Bolívia",
+      "timezone": "America/La_Paz"
+    },
+    "29580": {
+      "name": "CONCEPCIÓN",
+      "country": "Paraguai",
+      "timezone": "America/Asuncion"
+    },
+    "29599": {
+      "name": "COPENHAGUE",
+      "country": "Dinamarca",
+      "timezone": "Europe/Copenhagen"
+    },
+    "29602": {
+      "name": "CÓRDOBA",
+      "country": "Argentina",
+      "timezone": "America/Argentina/Buenos_Aires"
+    },
+    "29610": {
+      "name": "DACAR",
+      "country": "Senegal",
+      "timezone": "Africa/Dakar"
+    },
+    "29629": {
+      "name": "DACCA",
+      "country": "Bangladesh",
+      "timezone": "Asia/Dhaka"
+    },
+    "29637": {
+      "name": "DAMASCO",
+      "country": "Síria",
+      "timezone": "Asia/Damascus"
+    },
+    "29645": {
+      "name": "DÍLI",
+      "country": "Timor-Leste",
+      "timezone": "Asia/Dili"
+    },
+    "29653": {
+      "name": "DOHA",
+      "country": "Catar",
+      "timezone": "Asia/Qatar"
+    },
+    "29661": {
+      "name": "DUBLIN",
+      "country": "Irlanda",
+      "timezone": "Europe/Dublin"
+    },
+    "29670": {
+      "name": "ENCARNACIÓN",
+      "country": "Paraguai",
+      "timezone": "America/Asuncion"
+    },
+    "29688": {
+      "name": "ESTOCOLMO",
+      "country": "Suécia",
+      "timezone": "Europe/Stockholm"
+    },
+    "29696": {
+      "name": "FRANKFURT",
+      "country": "Alemanha",
+      "timezone": "Europe/Berlin"
+    },
+    "29700": {
+      "name": "GENEBRA",
+      "country": "Suíça",
+      "timezone": "Europe/Zurich"
+    },
+    "29718": {
+      "name": "GEORGETOWN",
+      "country": "Guiana",
+      "timezone": "America/Guyana"
+    },
+    "29742": {
+      "name": "HAMAMATSU",
+      "country": "Japão",
+      "timezone": "Asia/Tokyo"
+    },
+    "29750": {
+      "name": "HANÓI",
+      "country": "Vietnã",
+      "timezone": "Asia/Ho_Chi_Minh"
+    },
+    "29769": {
+      "name": "HARARE",
+      "country": "Zimbábue",
+      "timezone": "Africa/Harare"
+    },
+    "29777": {
+      "name": "HAVANA",
+      "country": "Cuba",
+      "timezone": "America/Havana"
+    },
+    "29785": {
+      "name": "HELSINQUE",
+      "country": "Finlândia",
+      "timezone": "Europe/Helsinki"
+    },
+    "29793": {
+      "name": "HONG KONG",
+      "country": "China",
+      "timezone": "Asia/Hong_Kong"
+    },
+    "29807": {
+      "name": "HOUSTON",
+      "country": "Estados Unidos",
+      "timezone": "America/Chicago"
+    },
+    "29815": {
+      "name": "IAUNDÊ",
+      "country": "Camarões",
+      "timezone": "Africa/Douala"
+    },
+    "29823": {
+      "name": "IQUITOS",
+      "country": "Peru",
+      "timezone": "America/Lima"
+    },
+    "29831": {
+      "name": "ISLAMABADE",
+      "country": "Paquistão",
+      "timezone": "Asia/Karachi"
+    },
+    "29840": {
+      "name": "JACARTA",
+      "country": "Indonésia",
+      "timezone": "Asia/Jakarta"
+    },
+    "29858": {
+      "name": "KIEV",
+      "country": "Ucrânia",
+      "timezone": "Europe/Kyiv"
+    },
+    "29874": {
+      "name": "KINSHASA",
+      "country": "República Democrática do Congo",
+      "timezone": "Africa/Kinshasa"
+    },
+    "29882": {
+      "name": "KUAITE",
+      "country": "Kuwait",
+      "timezone": "Asia/Kuwait"
+    },
+    "29890": {
+      "name": "KUALA LUMPUR",
+      "country": "Malásia",
+      "timezone": "Asia/Kuala_Lumpur"
+    },
+    "29904": {
+      "name": "LA PAZ",
+      "country": "Bolívia",
+      "timezone": "America/La_Paz"
+    },
+    "29912": {
+      "name": "LAGOS",
+      "country": "Nigéria",
+      "timezone": "Africa/Lagos"
+    },
+    "29939": {
+      "name": "LIBREVILLE",
+      "country": "Gabão",
+      "timezone": "Africa/Libreville"
+    },
+    "29947": {
+      "name": "LIMA",
+      "country": "Peru",
+      "timezone": "America/Lima"
+    },
+    "29955": {
+      "name": "LISBOA",
+      "country": "Portugal",
+      "timezone": "Europe/Lisbon"
+    },
+    "29963": {
+      "name": "LOMÉ",
+      "country": "Togo",
+      "timezone": "Africa/Lome"
+    },
+    "29971": {
+      "name": "LONDRES",
+      "country": "Reino Unido",
+      "timezone": "Europe/London"
+    },
+    "29980": {
+      "name": "LOS ANGELES",
+      "country": "Estados Unidos",
+      "timezone": "America/Los_Angeles"
+    },
+    "29998": {
+      "name": "LUANDA",
+      "country": "Angola",
+      "timezone": "Africa/Luanda"
+    },
+    "30066": {
+      "name": "MADRI",
+      "country": "Espanha",
+      "timezone": "Europe/Madrid"
+    },
+    "30074": {
+      "name": "MANÁGUA",
+      "country": "Nicarágua",
+      "timezone": "America/Managua"
+    },
+    "30082": {
+      "name": "MANILA",
+      "country": "Filipinas",
+      "timezone": "Asia/Manila"
+    },
+    "30090": {
+      "name": "MAPUTO",
+      "country": "Moçambique",
+      "timezone": "Africa/Maputo"
+    },
+    "30104": {
+      "name": "MEXICO",
+      "country": "México",
+      "timezone": "America/Mexico_City"
+    },
+    "30112": {
+      "name": "MIAMI",
+      "country": "Estados Unidos",
+      "timezone": "America/New_York"
+    },
+    "30120": {
+      "name": "MILÃO",
+      "country": "Itália",
+      "timezone": "Europe/Rome"
+    },
+    "30147": {
+      "name": "MONTEVIDÉU",
+      "country": "Uruguai",
+      "timezone": "America/Montevideo"
+    },
+    "30155": {
+      "name": "MONTREAL",
+      "country": "Canadá",
+      "timezone": "America/Toronto"
+    },
+    "30163": {
+      "name": "MOSCOU",
+      "country": "Rússia",
+      "timezone": "Europe/Moscow"
+    },
+    "30171": {
+      "name": "MUMBAI",
+      "country": "Índia",
+      "timezone": "Asia/Kolkata"
+    },
+    "30180": {
+      "name": "MUNIQUE",
+      "country": "Alemanha",
+      "timezone": "Europe/Berlin"
+    },
+    "30198": {
+      "name": "NAGÓIA",
+      "country": "Japão",
+      "timezone": "Asia/Tokyo"
+    },
+    "30201": {
+      "name": "NAIRÓBI",
+      "country": "Quênia",
+      "timezone": "Africa/Nairobi"
+    },
+    "30210": {
+      "name": "NOVA DELHI",
+      "country": "Índia",
+      "timezone": "Asia/Kolkata"
+    },
+    "30228": {
+      "name": "NOVA YORK",
+      "country": "Estados Unidos",
+      "timezone": "America/New_York"
+    },
+    "30244": {
+      "name": "OSLO",
+      "country": "Noruega",
+      "timezone": "Europe/Oslo"
+    },
+    "30252": {
+      "name": "OTTAWA",
+      "country": "Canadá",
+      "timezone": "America/Toronto"
+    },
+    "30260": {
+      "name": "PANAMA",
+      "country": "Panamá",
+      "timezone": "America/Panama"
+    },
+    "30279": {
+      "name": "PARAMARIBO",
+      "country": "Suriname",
+      "timezone": "America/Paramaribo"
+    },
+    "30287": {
+      "name": "PARIS",
+      "country": "França",
+      "timezone": "Europe/Paris"
+    },
+    "30295": {
+      "name": "PASO LOS LIBRES",
+      "country": "Argentina",
+      "timezone": "America/Argentina/Buenos_Aires"
+    },
+    "30309": {
+      "name": "PEDRO JUAN CABALLERO",
+      "country": "Paraguai",
+      "timezone": "America/Asuncion"
+    },
+    "30317": {
+      "name": "PEQUIM",
+      "country": "China",
+      "timezone": "Asia/Shanghai"
+    },
+    "30325": {
+      "name": "PORT OF SPAIN",
+      "country": "Trinidad e Tobago",
+      "timezone": "America/Port_of_Spain"
+    },
+    "30333": {
+      "name": "PORTO PRÍNCIPE",
+      "country": "Haiti",
+      "timezone": "America/Port-au-Prince"
+    },
+    "30341": {
+      "name": "PORTO",
+      "country": "Portugal",
+      "timezone": "Europe/Lisbon"
+    },
+    "30350": {
+      "name": "PRAGA",
+      "country": "Tchéquia",
+      "timezone": "Europe/Prague"
+    },
+    "30368": {
+      "name": "PRAIA",
+      "country": "Cabo Verde",
+      "timezone": "Atlantic/Cape_Verde"
+    },
+    "30376": {
+      "name": "PRETÓRIA",
+      "country": "África do Sul",
+      "timezone": "Africa/Johannesburg"
+    },
+    "30392": {
+      "name": "QUITO",
+      "country": "Equador",
+      "timezone": "America/Guayaquil"
+    },
+    "30406": {
+      "name": "RABAT",
+      "country": "Marrocos",
+      "timezone": "Africa/Casablanca"
+    },
+    "30414": {
+      "name": "RAMALLAH",
+      "country": "Palestina",
+      "timezone": "Asia/Hebron"
+    },
+    "30422": {
+      "name": "RIADE",
+      "country": "Arábia Saudita",
+      "timezone": "Asia/Riyadh"
+    },
+    "30430": {
+      "name": "RIO BRANCO",
+      "country": "Uruguai",
+      "timezone": "America/Montevideo"
+    },
+    "30449": {
+      "name": "ROMA",
+      "country": "Itália",
+      "timezone": "Europe/Rome"
+    },
+    "30457": {
+      "name": "AMSTERDÃ",
+      "country": "Países Baixos",
+      "timezone": "Europe/Amsterdam"
+    },
+    "30465": {
+      "name": "SALTO DEL GUAIRÁ",
+      "country": "Paraguai",
+      "timezone": "America/Asuncion"
+    },
+    "30473": {
+      "name": "SANTA CRUZ DE LA SIERRA",
+      "country": "Bolívia",
+      "timezone": "America/La_Paz"
+    },
+    "30481": {
+      "name": "SANTIAGO",
+      "country": "Chile",
+      "timezone": "America/Santiago"
+    },
+    "30490": {
+      "name": "SÃO DOMINGOS",
+      "country": "República Dominicana",
+      "timezone": "America/Santo_Domingo"
+    },
+    "30503": {
+      "name": "SÃO FRANCISCO",
+      "country": "Estados Unidos",
+      "timezone": "America/Los_Angeles"
+    },
+    "30511": {
+      "name": "SÃO JOSÉ",
+      "country": "Costa Rica",
+      "timezone": "America/Costa_Rica"
+    },
+    "30520": {
+      "name": "SÃO SALVADOR",
+      "country": "El Salvador",
+      "timezone": "America/El_Salvador"
+    },
+    "30538": {
+      "name": "SEUL",
+      "country": "Coreia do Sul",
+      "timezone": "Asia/Seoul"
+    },
+    "30546": {
+      "name": "SÓFIA",
+      "country": "Bulgária",
+      "timezone": "Europe/Sofia"
+    },
+    "30562": {
+      "name": "SYDNEY",
+      "country": "Austrália",
+      "timezone": "Australia/Sydney"
+    },
+    "30570": {
+      "name": "TAIPÉ",
+      "country": "Taiwan (Taipé)",
+      "timezone": "Asia/Taipei"
+    },
+    "30597": {
+      "name": "TEERÃ",
+      "country": "Irã",
+      "timezone": "Asia/Tehran"
+    },
+    "30600": {
+      "name": "TEGUCIGALPA",
+      "country": "Honduras",
+      "timezone": "America/Tegucigalpa"
+    },
+    "30619": {
+      "name": "TEL AVIV",
+      "country": "Israel",
+      "timezone": "Asia/Jerusalem"
+    },
+    "30627": {
+      "name": "TÓQUIO",
+      "country": "Japão",
+      "timezone": "Asia/Tokyo"
+    },
+    "30635": {
+      "name": "TORONTO",
+      "country": "Canadá",
+      "timezone": "America/Toronto"
+    },
+    "30651": {
+      "name": "CANTÃO",
+      "country": "China",
+      "timezone": "Asia/Shanghai"
+    },
+    "30669": {
+      "name": "GABORONE",
+      "country": "Botsuana",
+      "timezone": "Africa/Gaborone"
+    },
+    "30686": {
+      "name": "TRÍPOLI",
+      "country": "Líbia",
+      "timezone": "Africa/Tripoli"
+    },
+    "30708": {
+      "name": "TUNIS",
+      "country": "Tunísia",
+      "timezone": "Africa/Tunis"
+    },
+    "30740": {
+      "name": "VARSÓVIA",
+      "country": "Polônia",
+      "timezone": "Europe/Warsaw"
+    },
+    "30767": {
+      "name": "VIENA",
+      "country": "Áustria",
+      "timezone": "Europe/Vienna"
+    },
+    "30783": {
+      "name": "WASHINGTON",
+      "country": "Estados Unidos",
+      "timezone": "America/New_York"
+    },
+    "30805": {
+      "name": "WELLINGTON",
+      "country": "Nova Zelândia",
+      "timezone": "Pacific/Auckland"
+    },
+    "30821": {
+      "name": "WINDHOEK",
+      "country": "Namíbia",
+      "timezone": "Africa/Windhoek"
+    },
+    "30848": {
+      "name": "XANGAI",
+      "country": "China",
+      "timezone": "Asia/Shanghai"
+    },
+    "30864": {
+      "name": "ZURIQUE",
+      "country": "Suíça",
+      "timezone": "Europe/Zurich"
+    },
+    "30902": {
+      "name": "HARTFORD",
+      "country": "Estados Unidos",
+      "timezone": "America/New_York"
+    },
+    "30929": {
+      "name": "COLOMBO",
+      "country": "Sri Lanka",
+      "timezone": "Asia/Colombo"
+    },
+    "30961": {
+      "name": "FARO",
+      "country": "Portugal",
+      "timezone": "Europe/Lisbon"
+    },
+    "30988": {
+      "name": "SARAJEVO",
+      "country": "Bósnia e Herzegovina",
+      "timezone": "Europe/Sarajevo"
+    },
+    "38881": {
+      "name": "BELMOPAN",
+      "country": "Belize",
+      "timezone": "America/Belize"
+    },
+    "38903": {
+      "name": "CONACRI",
+      "country": "Guiné",
+      "timezone": "Africa/Conakry"
+    },
+    "38920": {
+      "name": "COTONOU",
+      "country": "Benim",
+      "timezone": "Africa/Porto-Novo"
+    },
+    "38962": {
+      "name": "DAR ES SALAAM",
+      "country": "Tanzânia",
+      "timezone": "Africa/Dar_es_Salaam"
+    },
+    "38989": {
+      "name": "IEREVAN",
+      "country": "Armênia",
+      "timezone": "Asia/Yerevan"
+    },
+    "39004": {
+      "name": "MENDOZA",
+      "country": "Argentina",
+      "timezone": "America/Argentina/Buenos_Aires"
+    },
+    "39020": {
+      "name": "ZAGREB",
+      "country": "Croácia",
+      "timezone": "Europe/Zagreb"
+    },
+    "39063": {
+      "name": "VANCOUVER",
+      "country": "Canadá",
+      "timezone": "America/Vancouver"
+    },
+    "39080": {
+      "name": "ATLANTA",
+      "country": "Estados Unidos",
+      "timezone": "America/New_York"
+    },
+    "39102": {
+      "name": "MASCATE",
+      "country": "Omã",
+      "timezone": "Asia/Muscat"
+    },
+    "39128": {
+      "name": "BAKU",
+      "country": "Azerbaijão",
+      "timezone": "Asia/Baku"
+    },
+    "39160": {
+      "name": "LIUBLIANA",
+      "country": "Eslovênia",
+      "timezone": "Europe/Ljubljana"
+    },
+    "39187": {
+      "name": "BRAZZAVILLE",
+      "country": "República do Congo",
+      "timezone": "Africa/Brazzaville"
+    },
+    "39209": {
+      "name": "BRATISLAVA",
+      "country": "Eslováquia",
+      "timezone": "Europe/Bratislava"
+    },
+    "39225": {
+      "name": "SÃO TOMÉ",
+      "country": "São Tomé e Príncipe",
+      "timezone": "Africa/Sao_Tome"
+    },
+    "39241": {
+      "name": "ASTANA",
+      "country": "Cazaquistão",
+      "timezone": "Asia/Almaty"
+    },
+    "39263": {
+      "name": "MALABO",
+      "country": "Guiné Equatorial",
+      "timezone": "Africa/Malabo"
+    },
+    "39284": {
+      "name": "UAGADUGU",
+      "country": "Burkina Faso",
+      "timezone": "Africa/Ouagadougou"
+    },
+    "39306": {
+      "name": "ISTAMBUL",
+      "country": "Turquia",
+      "timezone": "Europe/Istanbul"
+    },
+    "39322": {
+      "name": "NICOSIA",
+      "country": "Chipre",
+      "timezone": "Asia/Nicosia"
+    },
+    "98000": {
+      "name": "GUATEMALA",
+      "country": "Guatemala",
+      "timezone": "America/Guatemala"
+    },
+    "99104": {
+      "name": "TBILISI",
+      "country": "Geórgia",
+      "timezone": "Asia/Tbilisi"
+    },
+    "99139": {
+      "name": "TIRANA",
+      "country": "Albânia",
+      "timezone": "Europe/Tirane"
+    },
+    "99147": {
+      "name": "SAINT JOHNS",
+      "country": "Antígua e Barbuda",
+      "timezone": "America/Antigua"
+    },
+    "99155": {
+      "name": "PUERTO IGUAZÚ",
+      "country": "Argentina",
+      "timezone": "America/Argentina/Buenos_Aires"
+    },
+    "99171": {
+      "name": "BAGDÁ",
+      "country": "Iraque",
+      "timezone": "Asia/Baghdad"
+    },
+    "99180": {
+      "name": "NASSAU",
+      "country": "Bahamas",
+      "timezone": "America/Nassau"
+    },
+    "99198": {
+      "name": "ABUJA",
+      "country": "Nigéria",
+      "timezone": "Africa/Lagos"
+    },
+    "99210": {
+      "name": "COBIJA",
+      "country": "Bolívia",
+      "timezone": "America/La_Paz"
+    },
+    "99236": {
+      "name": "PUERTO QUIJARRO",
+      "country": "Bolívia",
+      "timezone": "America/La_Paz"
+    },
+    "99244": {
+      "name": "RIVERA",
+      "country": "Uruguai",
+      "timezone": "America/Montevideo"
+    },
+    "99279": {
+      "name": "SANTA ELENA DE UAIRÉN",
+      "country": "Venezuela",
+      "timezone": "America/Caracas"
+    },
+    "99287": {
+      "name": "LUSACA",
+      "country": "Zâmbia",
+      "timezone": "Africa/Lusaka"
+    },
+    "99295": {
+      "name": "PYONGYANG",
+      "country": "Coreia do Norte",
+      "timezone": "Asia/Pyongyang"
+    },
+    "99317": {
+      "name": "TALIN",
+      "country": "Estônia",
+      "timezone": "Europe/Tallinn"
+    },
+    "99325": {
+      "name": "ADIS ABEBA",
+      "country": "Etiópia",
+      "timezone": "Africa/Addis_Ababa"
+    },
+    "99333": {
+      "name": "ST GEORGES DE LOYAPOCK",
+      "country": "Guiana Francesa",
+      "timezone": "America/Cayenne"
+    },
+    "99341": {
+      "name": "LILONGUE",
+      "country": "Malawi",
+      "timezone": "Africa/Blantyre"
+    },
+    "99350": {
+      "name": "BAMAKO",
+      "country": "Mali",
+      "timezone": "Africa/Bamako"
+    },
+    "99376": {
+      "name": "YANGON",
+      "country": "Mianmar",
+      "timezone": "Asia/Yangon"
+    },
+    "99384": {
+      "name": "CASTRIES",
+      "country": "Santa Lúcia",
+      "timezone": "America/St_Lucia"
+    },
+    "99430": {
+      "name": "KINGSTON-JAMAICA",
+      "country": "Jamaica",
+      "timezone": "America/Jamaica"
+    },
+    "99473": {
+      "name": "BAREIN",
+      "country": "Barein",
+      "timezone": "Asia/Bahrain"
+    },
+    "99490": {
+      "name": "ORLANDO",
+      "country": "Estados Unidos",
+      "timezone": "America/New_York"
+    },
+    "99503": {
+      "name": "EDIMBURGO",
+      "country": "Reino Unido",
+      "timezone": "Europe/London"
+    },
+    "99511": {
+      "name": "MARSELHA",
+      "country": "França",
+      "timezone": "Europe/Paris"
+    }
+  }
+}
