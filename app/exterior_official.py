@@ -23,6 +23,7 @@ BASE = 'https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/3221'
 INDEX = BASE + '/config/zz/zz-p003221-cs.json'
 CACHE_KEY = 'exterior:official:3221:sections:v1'
 COUNTRIES = {'29491':'Austrália', '29742':'Japão', '30627':'Japão', '30198':'Japão'}
+RECEIPT_DATES = {'25/10/2026', '26/10/2026'}
 
 
 def _normal(value: str) -> str:
@@ -152,13 +153,13 @@ class OfficialExteriorClient:
         folder = f'{BASE}/dados/zz/{code}/{zone}/{section}'
         aux_url = f'{folder}/p003221-zz-m{code}-z{zone}-s{section}-aux.json'
         aux = (await self._get(aux_url)).json()
-        if str(aux.get('f','')).lower() != 'o' or aux.get('dg') != '25/10/2026':
+        if str(aux.get('f','')).lower() != 'o' or aux.get('dg') not in RECEIPT_DATES:
             raise ValueError('Wrong exterior auxiliary phase or date')
         if _normal(aux.get('st','')) not in {'recebida', 'totalizada'}:
             return bool(self._records.pop(key, None))
         hashes = sorted(aux.get('hashes', []), key=lambda h:(h.get('dr',''),h.get('hr','')), reverse=True)
         selected = next((h for h in hashes if _normal(h.get('st','')) in {'recebido','totalizado'}), None)
-        if not selected or selected.get('dr') != '25/10/2026':
+        if not selected or selected.get('dr') not in RECEIPT_DATES:
             raise ValueError('No accepted second-round BU hash')
         hash_ = selected['hash']
         if not re.fullmatch('[a-fA-F0-9]{16,256}', hash_):

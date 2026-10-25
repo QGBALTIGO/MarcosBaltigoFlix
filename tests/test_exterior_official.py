@@ -160,6 +160,27 @@ def test_rate_limit_sets_ten_minute_backoff():
     asyncio.run(scenario())
 
 
+def test_next_day_receipt_still_requires_election_day_bu():
+    async def scenario():
+        client=OfficialExteriorClient(config())
+        await client.client.aclose()
+        index=wire_index()
+        index['abr'][0]['mu']=index['abr'][0]['mu'][:1]
+        aux=json.loads((FIXTURES/'p003221-zz-m29491-z0001-s0732-aux.json').read_bytes())
+        aux['dg']='26/10/2026'
+        aux['hashes'][0]['dr']='26/10/2026'
+        url=BASE+'/dados/zz/29491/0001/0732/p003221-zz-m29491-z0001-s0732-aux.json'
+        mock_client(client,[],index,overrides={url:httpx.Response(200,json=aux)})
+        try:
+            with patch('app.exterior_official._closed',return_value=True):
+                items=await client.fetch()
+            assert len(items)==1 and items[0].sections_counted==1
+            assert client.health['last_error'] is None
+        finally:
+            await client.close()
+    asyncio.run(scenario())
+
+
 def test_unmapped_unpublished_city_does_not_block_closed_localities():
     async def scenario():
         client=OfficialExteriorClient(config())
