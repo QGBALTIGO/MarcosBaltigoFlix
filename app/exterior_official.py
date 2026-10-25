@@ -208,13 +208,15 @@ class OfficialExteriorClient:
             selected_unknown = unknown[self._cursor % len(unknown)]['code'] if unknown else None
             self._cursor += 1
             checked = 0
+            # Unmapped cities are probed after places whose local voting has
+            # closed, so a still-unpublished city cannot delay Asia/Oceania.
+            scheduled = [p for p in self._places if _closed(p['name'],now) is True]
+            scheduled += [p for p in unknown if p['code']==selected_unknown]
             # Each locality is checked as a group; one missing section backs off
             # that locality, avoiding a burst of 404s against the TSE CDN.
-            for place in self._places:
+            for place in scheduled:
                 code = place['code']
                 if time.time() < self._probe_after.get(code,0):
-                    continue
-                if not _closed(place['name'],now) and code != selected_unknown:
                     continue
                 try:
                     pending = list(place['sections'])

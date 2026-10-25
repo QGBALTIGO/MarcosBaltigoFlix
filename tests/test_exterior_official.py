@@ -160,6 +160,25 @@ def test_rate_limit_sets_ten_minute_backoff():
     asyncio.run(scenario())
 
 
+def test_unmapped_unpublished_city_does_not_block_closed_localities():
+    async def scenario():
+        client=OfficialExteriorClient(config())
+        await client.client.aclose()
+        index=wire_index()
+        index['abr'][0]['mu'][0]['nm']='Cidade sem fuso cadastrado'
+        missing=BASE+'/dados/zz/29491/0001/0732/p003221-zz-m29491-z0001-s0732-aux.json'
+        calls=[]
+        mock_client(client,calls,index,overrides={missing:httpx.Response(404)})
+        try:
+            with patch('app.exterior_official._closed', side_effect=lambda name,now: None if name=='Cidade sem fuso cadastrado' else True):
+                items=await client.fetch()
+            assert [i.locality_code for i in items]==['29742']
+            assert '29742' in calls[1] and calls[-1]==missing
+        finally:
+            await client.close()
+    asyncio.run(scenario())
+
+
 def test_publisher_deduplicates_restart_and_reaches_localities_after_batch_limit(tmp_path):
     async def scenario():
         storage=Storage(str(tmp_path/'state.db'))
