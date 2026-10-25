@@ -1,0 +1,35 @@
+{
+  "round": 2,
+  "date": "2026-10-25",
+  "federal_code": 6258,
+  "state_code": 6260,
+  "governor_states": [
+    "ac",
+    "am",
+    "df",
+    "es",
+    "rn",
+    "to"
+  ],
+  "governor_source": "https://resultados.tse.jus.br/oficial/ele2026/6260/config/mun-e006260-cm.json",
+  "candidate_source": "https://resultados.tse.jus.br/oficial/ele2026/6258/dados/br/br-c0001-e006258-u.json",
+  "candidate_generation": "24/10/2026 19:19:13",
+  "president_candidates": [
+    {
+      "id": "280002551544",
+      "number": "22",
+      "name": "FLAVIO NANTES BOLSONARO",
+      "ballot_name": "FLAVIO BOLSONARO",
+      "party": "PL",
+      "party_name": "PARTIDO LIBERAL"
+    },
+    {
+      "id": "280002542548",
+      "number": "13",
+      "name": "LUIZ INÁCIO LULA DA SILVA",
+      "ballot_name": "LULA",
+      "party": "PT",
+      "party_name": "PARTIDO DOS TRABALHADORES"
+    }
+  ]
+}

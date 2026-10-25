@@ -1,3 +1,6 @@
+const CURRENT_ROUND=Number(document.querySelector('meta[name=election-round]')?.content||2);
+const RUNOFF_GOVERNOR_STATES=new Set(["ac", "am", "df", "es", "rn", "to"]);
+const activeRound=office=>['presidente','governador'].includes(office)?CURRENT_ROUND:1;
 const qs=s=>document.querySelector(s),qsa=s=>[...document.querySelectorAll(s)];
 const fmt=n=>new Intl.NumberFormat('pt-BR').format(Number(n||0));
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n||0));
@@ -10,7 +13,7 @@ const officeLabels={presidente:'Presidente',governador:'Governador',senador:'Sen
 const stateFlagSlugs={ac:'acre',al:'alagoas',ap:'amapa',am:'amazonas',ba:'bahia',ce:'ceara',df:'distrito-federal',es:'espirito-santo',go:'goias',ma:'maranhao',mt:'mato-grosso',ms:'mato-grosso-do-sul',mg:'minas-gerais',pa:'para',pb:'paraiba',pr:'parana',pe:'pernambuco',pi:'piaui',rj:'rio-de-janeiro',rn:'rio-grande-do-norte',rs:'rio-grande-do-sul',ro:'rondonia',rr:'roraima',sc:'santa-catarina',sp:'sao-paulo',se:'sergipe',to:'tocantins'};
 const STATE_FLAG_BASE='https://raw.githubusercontent.com/iconolatry/brazilian-states-flags/da53c2f1fe28ed67d2049b624f21536c337fd118/svg';
 const POLL_OFFICES=new Set(['presidente','governador','senador']);
-const CACHE_PREFIX='resultado_eleicoes_2026:';
+const CACHE_PREFIX='resultado_eleicoes_2026:r'+CURRENT_ROUND+':';
 const DIRECTORY_TTL=30*60*1000;
 const POLL_TTL=10*60*1000;
 
@@ -150,6 +153,7 @@ function isFavorite(c){return!!getFavorites()[favoriteKey(c)]}
 
 function setActiveOffice(office){
   state.office=office;
+  const subtitle=qs('.title p');if(subtitle)subtitle.textContent=activeRound(office)+'º turno • acompanhamento eleitoral';
   qsa('.chip').forEach(x=>x.classList.toggle('active',x.dataset.office===office));
   qs('#officeTitle').textContent=officeLabels[office];
   qs('#candidateSearch').value='';state.candidateQuery='';state.candidateLimit=24;
@@ -166,7 +170,7 @@ function applyDirectory(directory,fromCache=false){
   state.directoryContext=`${state.office}:${state.scope}`;
   qs('#locationName').textContent=states[state.scope]||state.scope.toUpperCase();
   qs('#officeTitle').textContent=officeLabels[state.office];
-  qs('#sectionsInfo').textContent=`${directory.count||0} candidaturas`;
+  qs('#sectionsInfo').textContent=directory.note||`${directory.count||0} candidaturas`;
   qs('#candidateSearchWrap').style.display=(directory.count||0)>20?'flex':'none';
   renderRealCandidates();
   renderSummaryFromState();
@@ -193,7 +197,7 @@ async function loadEstimateInBackground(seq){
   const context=`${office}:${scope}`;
   const cached=cacheRead(pollKey(office,scope),POLL_TTL);
   if(cached&&seq===state.requestSeq&&state.office===office&&state.scope===scope){state.poll=cached;state.pollContext=context;mergePollIntoDirectory(cached)}
-  let url=`/api/g1/poll?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&round=1`;
+  let url=`/api/g1/poll?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&round=${activeRound(office)}`;
   if(office==='presidente'&&scope==='br')url+='&institute=datafolha';
   try{
     const poll=await requestJson(url,{cache:'no-cache',timeout:8000});
@@ -469,7 +473,7 @@ function showView(name){
 async function loadCatalog(){try{state.catalog=await requestJson('/api/g1/catalog',{cache:'force-cache',timeout:6000})}catch(e){state.catalog=null}}
 function availableInstitutes(office=qs('#pollOffice').value,scope=state.scope){
   const label={presidente:'Presidente',governador:'Governador',senador:'Senador'}[office],cargo=state.catalog?.cargos?.find(x=>x.nome===label),loc=cargo?.localidades?.find(x=>String(x.uf).toLowerCase()===scope);
-  return loc?.turnos?.['1-turno']||[];
+  return loc?.turnos?.[activeRound(office)+'-turno']||[];
 }
 function syncInstitutes(){const sel=qs('#pollInstitute'),cur=sel.value,available=availableInstitutes();sel.innerHTML='<option value="">Automático</option>'+available.map(x=>`<option value="${esc(String(x.nome).toLowerCase())}">${esc(x.nome)}</option>`).join('');if([...sel.options].some(o=>o.value===cur))sel.value=cur;else if(qs('#pollOffice').value==='presidente'&&state.scope==='br'&&available.some(x=>String(x.nome).toLowerCase()==='datafolha'))sel.value='datafolha';else sel.value=''}
 function fillPollFilters(d){const q=qs('#pollQuestion'),qc=q.value;q.innerHTML=(d.available_questions||[]).map(x=>`<option value="${esc(x.code)}">${esc(x.label)}</option>`).join('')||`<option value="${esc(d.question_code||'')}">${esc(d.question||'Pergunta')}</option>`;q.value=[...q.options].some(o=>o.value===qc)?qc:(d.question_code||q.options[0]?.value||'');const s=qs('#pollStratum'),sv=s.value,groups={};(d.strata||[]).forEach(x=>(groups[x.group||'Outros']??=[]).push(x));s.innerHTML='<option value="">Total</option>'+Object.entries(groups).map(([g,items])=>`<optgroup label="${esc(g)}">${items.map(x=>`<option value="${esc((x.group_slug||g)+'|'+x.label)}">${esc(x.label)}</option>`).join('')}</optgroup>`).join('');if([...s.options].some(o=>o.value===sv))s.value=sv}
@@ -487,7 +491,7 @@ async function loadPoll(reset=false){
   const cacheKey=pollKey(office,scope,inst,qcode);
   const cached=cacheRead(cacheKey,POLL_TTL);if(cached){state.poll=cached;state.pollContext=`${office}:${scope}`;fillPollFilters(cached);renderPoll()}
   if(!cached)qs('#pollList').innerHTML='<div class="card coming skeleton" style="height:150px"></div>';
-  let url=`/api/g1/poll?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&round=1`;if(inst)url+=`&institute=${encodeURIComponent(inst)}`;if(qcode)url+=`&question=${encodeURIComponent(qcode)}`;
+  let url=`/api/g1/poll?office=${encodeURIComponent(office)}&scope=${encodeURIComponent(scope)}&round=${activeRound(office)}`;if(inst)url+=`&institute=${encodeURIComponent(inst)}`;if(qcode)url+=`&question=${encodeURIComponent(qcode)}`;
   try{
     const [d,dir]=await Promise.all([requestJson(url,{cache:'no-cache',timeout:9000}),highQualityDirectoryForPoll(office,scope)]);mergeHighQualityPollPhotos(d,dir);state.poll=d;state.pollContext=`${office}:${scope}`;cacheWrite(cacheKey,d);fillPollFilters(d);renderPoll();
   }catch(e){if(!cached){qs('#pollMeta').textContent='';qs('#pollList').innerHTML=`<div class="card coming"><b>Pesquisa indisponível</b><br>${esc(e.message)}</div>`;qs('#methodology').style.display='none'}}

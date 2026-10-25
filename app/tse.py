@@ -170,6 +170,8 @@ class TSEClient:
             },
             follow_redirects=True,
         )
+        self._fetched_at = {}
+        self._not_found = {}
         self._etag: dict[str, str] = {}
         self._last_modified: dict[str, str] = {}
         self._cache: dict[str, ElectionResult] = {}
@@ -188,11 +190,7 @@ class TSEClient:
 
         actual_office = "distrital" if office == "estadual" and scope == "df" else office
         cargo_code = OFFICE_CARGO_CODES[actual_office]
-        code = (
-            self.settings.tse_election_code
-            if office == "presidente"
-            else self.settings.tse_state_election_code
-        )
+        code = self.settings.code_for_office(office)
         ecode = f"{code:06d}"
         cargo = f"{cargo_code:04d}"
         filename = f"{scope}-c{cargo}-e{ecode}-u.json"
@@ -291,6 +289,14 @@ class TSEClient:
         cache_key = f"{office}:{scope}"
         lock = self._locks.setdefault(cache_key, asyncio.Lock())
         async with lock:
+            now = asyncio.get_running_loop().time()
+            interval = self.settings.result_cache_seconds
+            cached = self._cache.get(cache_key)
+            if interval > 0 and cached and now - self._fetched_at.get(cache_key, 0) < interval:
+                return cached, False
+            missing = self._not_found.get(cache_key)
+            if interval > 0 and missing and now < missing[0]:
+                missing[1].raise_for_status()
             url = self.result_url(scope, office=office)
             headers: dict[str, str] = {}
             if not force:
@@ -306,11 +312,21 @@ class TSEClient:
                     # Situação defensiva: um 304 sem cache local não é útil; refaça sem validadores.
                     response = await self._get_with_retry(url)
                 else:
+                    self._fetched_at[cache_key] = asyncio.get_running_loop().time()
                     return cached, False
 
+            if response.status_code in {404, 410} and interval > 0:
+                self._not_found[cache_key] = (asyncio.get_running_loop().time() + max(10, interval), response)
             response.raise_for_status()
             data = response.json()
             result = parse_ea20(data, scope=scope, raw_url=url, cargo_code=cargo_code)
+
+            expected_code = self.settings.code_for_office(office)
+            expected_round = self.settings.round_for_office(office)
+            if result.election_code != expected_code or result.round != expected_round:
+                raise ValueError("O arquivo recebido não corresponde ao pleito e ao turno solicitados.")
+            if result.phase not in ({"s"} if self.settings.is_simulation else {"o", "oficial"}):
+                raise ValueError("O ambiente do arquivo não corresponde à fonte configurada.")
 
             old = self._cache.get(cache_key)
             if self._is_stale_regression(result, old):
@@ -327,6 +343,8 @@ class TSEClient:
 
             changed = old is None or self._result_signature(old) != self._result_signature(result)
             self._cache[cache_key] = result
+            self._fetched_at[cache_key] = asyncio.get_running_loop().time()
+            self._not_found.pop(cache_key, None)
             if response.headers.get("etag"):
                 self._etag[cache_key] = response.headers["etag"]
             if response.headers.get("last-modified"):

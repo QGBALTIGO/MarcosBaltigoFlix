@@ -1295,7 +1295,7 @@ class ElectionBot:
         history: bool = False,
     ) -> None:
         try:
-            poll = await self.g1_polls.fetch(office, scope, 1, institute)
+            poll = await self.g1_polls.fetch(office, scope, self.settings.round_for_office(office), institute)
             text = format_g1_history(poll) if history else format_g1_poll(poll)
             external_chat = getattr(getattr(message, "chat", None), "type", "private") != "private"
             markup = poll_keyboard(self.settings, poll, external_chat=external_chat)
@@ -1417,7 +1417,7 @@ class ElectionBot:
             await update.effective_message.reply_text("Comando restrito aos administradores configurados.")
             return
         try:
-            poll = await self.g1_polls.fetch("presidente", "br", 1, "datafolha", force=True)
+            poll = await self.g1_polls.fetch("presidente", "br", self.settings.election_round, "datafolha", force=True)
             ok = await self.publish_g1_poll(
                 poll,
                 headline="BOLETIM • ÚLTIMA PESQUISA DISPONÍVEL",

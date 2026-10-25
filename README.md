@@ -127,3 +127,10 @@ O serviço é compatível com Docker/Railway. Para persistir o SQLite entre depl
 ```
 
 O token do Telegram e demais segredos devem ficar apenas nas variáveis do Railway, nunca no GitHub.
+
+
+## Segundo turno — 25/10/2026
+
+Use `ELECTION_MODE=official` e `ELECTION_ROUND=2`. Os arquivos oficiais são 6258 (Presidente) e 6260 (Governador); Senado e deputados continuam consultando o primeiro turno, com indicação correspondente. Os arquivos recebidos são conferidos por pleito, turno e ambiente antes de entrar no cache. Antes das 17h de Brasília, a tela mostra uma base neutra, com votos zerados e candidaturas do segundo turno; não reaproveita a lista completa do primeiro turno. A captura oficial de candidaturas presidenciais e das UFs com segundo turno está em `app/data/second_round_2026.json`, com origem e data. Esse arquivo nunca é usado como resultado de votos.
+
+A colinha e o treino exibem somente os cargos em disputa: Presidente e, nas UFs identificadas pelo arquivo oficial do TSE, Governador. Os caches e as anotações locais são separados por turno. Pesquisas, quando consultadas, usam o turno correspondente. O coletor de matérias do exterior deve ficar desativado nesta implantação para evitar boletins de matérias do primeiro turno.
