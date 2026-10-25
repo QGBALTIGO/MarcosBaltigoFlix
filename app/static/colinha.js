@@ -8,6 +8,8 @@
     {key:'governador',office:'governador',label:'GOVERNADOR',digits:2},
     {key:'presidente',office:'presidente',label:'PRESIDENTE',digits:2}
   ];
+  var ALL_VOTING_SLOTS=COLINHA_SLOTS.slice();
+  if(CURRENT_ROUND===2)COLINHA_SLOTS=ALL_VOTING_SLOTS.filter(function(slot){return slot.office==='governador'||slot.office==='presidente'});
   var SLOT_BY_KEY={};
   COLINHA_SLOTS.forEach(function(slot){SLOT_BY_KEY[slot.key]=slot});
 
@@ -43,10 +45,10 @@
     return out;
   }
   function storageKey(scope){
-    return 'resultado_eleicoes_2026:colinha:'+String(scope||'br');
+    return 'resultado_eleicoes_2026:r'+CURRENT_ROUND+':colinha:'+String(scope||'br');
   }
   function cloudKey(scope){
-    return 'colinha_'+String(scope||'br');
+    return 'colinha_r'+CURRENT_ROUND+'_'+String(scope||'br');
   }
   function normalizeVotes(value){
     var out=emptyVotes();
@@ -263,6 +265,7 @@
     qs('#colinhaUfText').textContent=code;
   }
   async function loadColinha(force){
+    if(CURRENT_ROUND===2)COLINHA_SLOTS=ALL_VOTING_SLOTS.filter(function(slot){return slot.office==='presidente'||slot.office==='governador'&&RUNOFF_GOVERNOR_STATES.has(state.scope)});
     updateColinhaHeader();
     var needs=qs('#colinhaStateNeeded');
     var body=qs('#colinhaBody');

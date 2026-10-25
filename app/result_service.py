@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import httpx
+import asyncio
+import json
+from pathlib import Path
+from time import monotonic
 from datetime import date, datetime, time as dt_time
 from zoneinfo import ZoneInfo
 
@@ -13,6 +17,8 @@ from .tse import TSEClient
 PRE_ELECTION_PHASE = "pre_election"
 BRASILIA = ZoneInfo("America/Sao_Paulo")
 FIRST_ROUND_DATE = date(2026, 10, 4)
+SECOND_ROUND_DATE = date(2026, 10, 25)
+RUNOFF = json.loads((Path(__file__).parent / "data/second_round_2026.json").read_text(encoding="utf-8"))
 
 
 def is_pre_election(result: ElectionResult) -> bool:
@@ -70,12 +76,8 @@ def build_zero_result(
 
     return ElectionResult(
         scope=scope.lower(),
-        election_code=(
-            settings.tse_election_code
-            if office == "presidente"
-            else settings.tse_state_election_code
-        ),
-        round=1,
+        election_code=settings.code_for_office(office),
+        round=settings.round_for_office(office),
         phase=PRE_ELECTION_PHASE,
         generated_date="",
         generated_time="",
@@ -108,14 +110,19 @@ def build_zero_result(
     )
 
 
-def official_first_round_release_open(now: datetime | None = None) -> bool:
+def official_release_open(round_: int = 1, now: datetime | None = None) -> bool:
     now = now or datetime.now(BRASILIA)
-    if now.date() < FIRST_ROUND_DATE:
+    election_date = SECOND_ROUND_DATE if round_ == 2 else FIRST_ROUND_DATE
+    if now.date() < election_date:
         return False
-    if now.date() > FIRST_ROUND_DATE:
+    if now.date() > election_date:
         return True
-    release = datetime.combine(FIRST_ROUND_DATE, dt_time(17, 0), tzinfo=BRASILIA)
+    release = datetime.combine(election_date, dt_time(17, 0), tzinfo=BRASILIA)
     return now >= release
+
+
+def official_first_round_release_open(now: datetime | None = None) -> bool:
+    return official_release_open(1, now)
 
 
 class ResultService:
@@ -130,6 +137,34 @@ class ResultService:
         self.settings = settings
         self.tse = tse
         self.candidates = candidates
+        self._directories = {}
+        self._directory_locks = {}
+
+    async def directory(self, office: str, scope: str) -> dict:
+        if self.settings.election_round != 2 or office not in {"presidente", "governador"} or self.settings.is_simulation:
+            return await self.candidates.list(office, scope, include_poll=False)
+        scope = scope.lower()
+        if office == "governador" and scope not in RUNOFF["governor_states"]:
+            return {"office": office, "scope": scope, "count": 0, "candidates": [], "note": "Não há segundo turno para governador nesta UF.", "round": 2}
+        key = office + ":" + scope
+        async with self._directory_locks.setdefault(key, asyncio.Lock()):
+            cached = self._directories.get(key)
+            if cached and monotonic() - cached[0] < 600:
+                return cached[1]
+            rows = []
+            try:
+                result, _ = await self.tse.fetch(scope, office=office)
+                rows = [{"id": c.candidate_id, "number": str(c.number or ""), "name": c.name, "ballot_name": c.ballot_name, "party": c.party, "party_name": c.party_name} for c in result.candidates]
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code not in {404, 410}: raise
+            except (httpx.TimeoutException, httpx.NetworkError):
+                if office != "presidente": raise
+            if not rows and office == "presidente":
+                rows = RUNOFF["president_candidates"]
+            rows = [{**item, "photo": "", "estimate_percentage": None, "estimate_history": [], "uf": scope.upper(), "office": office} for item in rows]
+            data = {"office": office, "scope": scope, "round": 2, "count": len(rows), "candidates": rows, "estimate": {"available": False}, "candidate_source": {"label": "TSE · segundo turno", "url": self.tse.result_url(scope, office=office)}}
+            self._directories[key] = (monotonic(), data)
+            return data
 
     async def fetch(
         self,
@@ -142,16 +177,12 @@ class ResultService:
         # on election day. Return a local zero baseline until then instead of
         # repeatedly requesting a URL that is expected to be 404.
         if (
-            not force
+            (not force or self.settings.election_round == 2)
             and not self.settings.is_simulation
-            and not official_first_round_release_open()
+            and not official_release_open(self.settings.round_for_office(office))
         ):
             directory_scope = "br" if office == "presidente" and scope.lower() == "zz" else scope
-            directory = await self.candidates.list(
-                office,
-                directory_scope,
-                include_poll=False,
-            )
+            directory = await self.directory(office, directory_scope)
             return (
                 build_zero_result(
                     self.settings,
@@ -163,6 +194,8 @@ class ResultService:
                 False,
             )
 
+        if self.settings.election_round == 2 and office == "governador" and not self.settings.is_simulation and scope.lower() not in RUNOFF["governor_states"]:
+            raise ValueError("Não há segundo turno para governador nesta UF.")
         try:
             return await self.tse.fetch(scope, force=force, office=office)
         except httpx.HTTPStatusError as exc:
@@ -173,11 +206,7 @@ class ResultService:
                 raise
 
         directory_scope = "br" if office == "presidente" and scope.lower() == "zz" else scope
-        directory = await self.candidates.list(
-            office,
-            directory_scope,
-            include_poll=False,
-        )
+        directory = await self.directory(office, directory_scope)
         result = build_zero_result(
             self.settings,
             directory,

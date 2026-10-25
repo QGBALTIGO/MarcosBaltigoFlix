@@ -1,0 +1,16 @@
+{
+  "retrieved_on": "2026-10-25",
+  "source": "Tribunal Superior Eleitoral",
+  "files": [
+    {
+      "file": "o03221zz2949100010732-bu.dat",
+      "sha256": "23a75caa2ee9d8bc52b94ffea53eef0fdbc820fc5babcebd19a2f3c2e5337f73",
+      "url": "https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/3221/dados/zz/29491/0001/0732/50454954726255712d2d5a7643782b48384135676451616769724e5a39794d4b436a5963356a34704a61343d/o03221zz2949100010732-bu.dat"
+    },
+    {
+      "file": "o03221zz2974200010960-bu.dat",
+      "sha256": "0cef33ac8c0226440f3c3c4cc6ee3d7da8cedb93b967dc4b82c98ee620b068b4",
+      "url": "https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/3221/dados/zz/29742/0001/0960/494a4a6931324576506b4e4b5241535666653931684d65356f73584e76494178754243476243572b4d2d773d/o03221zz2974200010960-bu.dat"
+    }
+  ]
+}

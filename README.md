@@ -127,3 +127,18 @@ O serviço é compatível com Docker/Railway. Para persistir o SQLite entre depl
 ```
 
 O token do Telegram e demais segredos devem ficar apenas nas variáveis do Railway, nunca no GitHub.
+
+
+## Segundo turno — 25/10/2026
+
+Use `ELECTION_MODE=official` e `ELECTION_ROUND=2`. Os arquivos oficiais são 6258 (Presidente) e 6260 (Governador); Senado e deputados continuam consultando o primeiro turno, com indicação correspondente. Os arquivos recebidos são conferidos por pleito, turno e ambiente antes de entrar no cache. Antes das 17h de Brasília, a tela mostra uma base neutra, com votos zerados e candidaturas do segundo turno; não reaproveita a lista completa do primeiro turno. A captura oficial de candidaturas presidenciais e das UFs com segundo turno está em `app/data/second_round_2026.json`, com origem e data. Esse arquivo nunca é usado como resultado de votos.
+
+A colinha e o treino exibem somente os cargos em disputa: Presidente e, nas UFs identificadas pelo arquivo oficial do TSE, Governador. Os caches e as anotações locais são separados por turno. Pesquisas, quando consultadas, usam o turno correspondente.
+
+Com `EXTERIOR_BU_ENABLED=true`, o segundo turno oficial usa diretamente os arquivos EA16, EA18 e BU v2 do TSE, no pleito 3221. O coletor de matérias do primeiro turno não é consultado. Cada BU precisa pertencer a 25/10/2026, ambiente oficial, eleição 6258 e à seção solicitada. A soma dos votos nominais, brancos e nulos deve coincidir com o comparecimento. A leitura não equivale à verificação criptográfica das assinaturas dos arquivos.
+
+O catálogo em `app/data/exterior_locations_2026.json` abrange as 186 localidades do índice oficial do exterior, cruzadas com o cadastro de locais de votação de 2026. A classificação geográfica por país/território e os fusos IANA são metadados próprios, documentados no catálogo; os votos vêm dos BUs oficiais. Novas localidades do índice continuam entrando na fila, mesmo sem fuso reconhecido. O cursor da varredura e o progresso das seções persistem no SQLite. Um arquivo ausente não interrompe a consulta das outras localidades, e os limites de trabalho retomam da posição seguinte.
+
+O canal recebe uma mensagem por país/território, com cobertura das seções principais e das localidades. A mensagem é atualizada quando chegam mais BUs; se tiver sido apagada, é recriada. Falhas de rede ao editar não provocam um novo envio. Seções agregadas não são contadas duas vezes, e o recorte dos BUs é separado da totalização nacional. Cache, cursor, fingerprints e identificadores das mensagens ficam no SQLite, com chaves do segundo turno. Consultas à CDN são limitadas, arquivos ausentes recebem espera e respostas 403/429 suspendem o coletor por dez minutos. O monitor permanece ativo também em 26/10 para receber boletins das localidades com fuso atrasado. `/api/exterior` mostra países, localidades, cobertura completa e URLs/resumos SHA-256 dos BUs; `/api/health` informa o progresso da varredura.
+
+Documentação: [arquivos de divulgação](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados) e [BU/RDV v2](https://www.tse.jus.br/eleicoes/eleicoes-2026). As amostras em `tests/fixtures/exterior` foram obtidas diretamente da CDN oficial e têm origem e resumo digital em `sources.json`.

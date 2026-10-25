@@ -60,6 +60,8 @@ class Settings:
     port: int
     webapp_url: str
     channel_id: str
+    result_cache_seconds: float = 0
+    election_round: int = 1
     required_channel: str = ""
     bot_username: str = "ResultadoEleicoes_Bot"
     timezone: str = "America/Campo_Grande"
@@ -72,6 +74,16 @@ class Settings:
     exterior_bu_enabled: bool = True
     exterior_bu_poll_seconds: int = 90
     exterior_bu_source_url: str = "https://www.poder360.com.br/poder-eleicoes-2026/eleicoes-2026-exterior-resultados/"
+
+    def round_for_office(self, office: str) -> int:
+        return self.election_round if office in {"presidente", "governador"} else 1
+
+    def code_for_office(self, office: str) -> int:
+        if office == "presidente":
+            return self.tse_election_code
+        if office == "governador" or self.election_round == 1:
+            return self.tse_state_election_code
+        return 21272 if self.is_simulation else 6259
 
     @property
     def is_simulation(self) -> bool:
@@ -93,19 +105,23 @@ def get_settings() -> Settings:
     if mode not in {"simulation", "official"}:
         raise RuntimeError("ELECTION_MODE deve ser 'simulation' ou 'official'.")
 
+    election_round = _int("ELECTION_ROUND", 2)
+    if election_round not in {1, 2}:
+        raise RuntimeError("ELECTION_ROUND deve ser 1 ou 2.")
+
     if mode == "simulation":
         defaults = {
             "base": "https://resultados-sim.tse.jus.br/simulado",
             "environment": "simulado2026",
-            "election": 21270,
-            "state_election": 21272,
+            "election": 22410 if election_round == 2 else 21270,
+            "state_election": 22412 if election_round == 2 else 21272,
         }
     else:
         defaults = {
             "base": "https://resultados.tse.jus.br",
             "environment": "oficial",
-            "election": 6257,
-            "state_election": 6259,
+            "election": 6258 if election_round == 2 else 6257,
+            "state_election": 6260 if election_round == 2 else 6259,
         }
 
     db_path = os.getenv("DATABASE_PATH", "data/election_bot.db")
@@ -114,6 +130,8 @@ def get_settings() -> Settings:
     return Settings(
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", "").strip(),
         election_mode=mode,
+        election_round=election_round,
+        result_cache_seconds=max(1.0, _float("RESULT_CACHE_SECONDS", 2.0)),
         tse_base_url=os.getenv("TSE_BASE_URL", defaults["base"]).rstrip("/"),
         tse_environment=os.getenv("TSE_ENVIRONMENT", defaults["environment"]).strip("/"),
         tse_election_code=_int("TSE_ELECTION_CODE", defaults["election"]),

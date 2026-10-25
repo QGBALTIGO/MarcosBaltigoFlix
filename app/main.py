@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .bot import ElectionBot
@@ -16,6 +16,7 @@ from .candidates import CandidateDirectory
 from .config import get_settings
 from .g1_polls import G1PollClient
 from .exterior import ExteriorBulletinClient, exterior_bulletin_loop
+from .exterior_official import OfficialExteriorClient
 from .monitor import ElectionMonitorState, monitor_loop
 from .poll_monitor import g1_poll_loop
 from .result_service import ResultService, is_pre_election
@@ -33,12 +34,14 @@ settings = get_settings()
 storage = Storage(settings.database_path)
 tse = TSEClient(settings)
 g1_polls = G1PollClient()
-candidates = CandidateDirectory(g1_polls)
+candidates = CandidateDirectory(g1_polls, election_round=settings.election_round)
 results = ResultService(settings, tse, candidates)
 election_bot = ElectionBot(settings, results, storage, g1_polls)
 stop_event = asyncio.Event()
 monitor_state = ElectionMonitorState()
-exterior_client = ExteriorBulletinClient(settings)
+exterior_client = (OfficialExteriorClient(settings, storage)
+                   if settings.election_round == 2 and not settings.is_simulation
+                   else ExteriorBulletinClient(settings))
 monitor_task: asyncio.Task | None = None
 g1_task: asyncio.Task | None = None
 exterior_task: asyncio.Task | None = None
@@ -50,7 +53,7 @@ async def lifespan(app: FastAPI):
     await storage.init()
     try:
         await asyncio.wait_for(
-            candidates.list("presidente", "br", include_poll=False),
+            results.directory("presidente", "br"),
             timeout=10,
         )
         logging.getLogger(__name__).info("Cache inicial de candidaturas presidenciais aquecido")
@@ -134,8 +137,8 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/")
 async def index():
-    return FileResponse(
-        static_dir / "index.html",
+    return HTMLResponse(
+        (static_dir / "index.html").read_text(encoding="utf-8").replace('content="2" name="election-round"', f'content="{settings.election_round}" name="election-round"'),
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
             "Pragma": "no-cache",
@@ -149,6 +152,9 @@ async def health():
     return {
         "ok": True,
         "mode": settings.election_mode,
+        "election_round": settings.election_round,
+        "election_code": settings.tse_election_code,
+        "state_election_code": settings.tse_state_election_code,
         "telegram_configured": bool(settings.telegram_bot_token),
         "poll_seconds": settings.poll_seconds,
         "president_poll_seconds": settings.president_poll_seconds,
@@ -156,10 +162,18 @@ async def health():
         "channel": election_bot.channel_health(),
         "exterior_bu_enabled": settings.exterior_bu_enabled,
         "exterior_bu_poll_seconds": settings.exterior_bu_poll_seconds,
+        "exterior": getattr(exterior_client, 'health', None),
         "g1_daily_enabled": settings.g1_daily_enabled,
         "g1_daily_time": f"{settings.g1_daily_hour:02d}:{settings.g1_daily_minute:02d}",
         "timezone": settings.timezone,
     }
+
+
+@app.get('/api/exterior')
+async def api_exterior():
+    if not isinstance(exterior_client, OfficialExteriorClient):
+        return {'round':settings.election_round, 'localities':[]}
+    return exterior_client.snapshot()
 
 
 @app.get("/api/result")
@@ -179,7 +193,7 @@ async def api_result(
         result, _ = await results.fetch(scope, office=office)
         data = result.to_dict()
         data["source_label"] = settings.source_label
-        data["simulation"] = False
+        data["simulation"] = settings.is_simulation
         data["pre_election"] = is_pre_election(result)
         data["source_url"] = settings.public_results_url
         return data
@@ -194,7 +208,7 @@ async def api_result(
 async def api_g1_poll(
     office: str = Query(default="presidente"),
     scope: str = Query(default="br"),
-    round_: int = Query(default=1, alias="round", ge=1, le=2),
+    round_: int = Query(default=settings.election_round, alias="round", ge=1, le=2),
     institute: str | None = Query(default=None),
     question: str | None = Query(default=None),
     force: bool = Query(default=False),
@@ -299,7 +313,12 @@ async def api_candidates(
     include_poll: bool = Query(default=False),
 ):
     try:
-        data = await candidates.list(office, scope, include_poll=include_poll)
+        if office not in {"presidente", "governador", "senador", "federal", "estadual", "distrital"} or scope.lower() not in ({"br"} | VALID_UFS):
+            raise ValueError("Cargo ou UF inválidos.")
+        if settings.election_round == 2 and office in {"presidente", "governador"}:
+            data = await results.directory(office, scope)
+        else:
+            data = await candidates.list(office, scope, include_poll=include_poll)
         return JSONResponse(
             data,
             headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=300"},

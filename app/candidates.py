@@ -107,8 +107,9 @@ class CacheItem:
 
 
 class CandidateDirectory:
-    def __init__(self, g1: G1PollClient, cache_seconds: int = 1800) -> None:
+    def __init__(self, g1: G1PollClient, cache_seconds: int = 1800, *, election_round: int = 1) -> None:
         self.g1 = g1
+        self.election_round = election_round
         self.cache_seconds = cache_seconds
         self.http = httpx.AsyncClient(
             timeout=25,
@@ -263,7 +264,7 @@ class CandidateDirectory:
             try:
                 poll_scope = "br" if office == "presidente" else scope
                 institute = "datafolha" if office == "presidente" else None
-                poll = await self.g1.fetch(office, poll_scope, 1, institute)
+                poll = await self.g1.fetch(office, poll_scope, self.election_round if office in {"presidente", "governador"} else 1, institute)
             except Exception:
                 poll = None
 

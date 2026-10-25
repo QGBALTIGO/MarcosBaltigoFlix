@@ -10,7 +10,7 @@ import unicodedata
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.constants import ParseMode
-from telegram.error import BadRequest, Forbidden, TelegramError
+from telegram.error import BadRequest, Forbidden, RetryAfter, TelegramError
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, InlineQueryHandler
 
 from .config import Settings
@@ -368,6 +368,7 @@ class ElectionBot:
         self.channel_chat_id: int | None = None
         self.channel_last_checked_monotonic: float = 0.0
         self.channel_last_update_at: str = ""
+        self.exterior_retry_at: float = 0.0
 
     async def _record_user(self, update: Update) -> None:
         user = getattr(update, "effective_user", None)
@@ -653,19 +654,43 @@ class ElectionBot:
             log.error("Falha atualizando presidência no canal: %s", exc)
             return False
 
-    async def publish_exterior_update(self, text: str) -> bool:
+    async def publish_exterior_update(self, text: str, message_id: int | None = None) -> bool:
+        if time.monotonic() < self.exterior_retry_at:
+            return False
         if not self.application or not await self.check_channel_ready():
             return False
         assert self.channel_chat_id is not None
         try:
-            await self.application.bot.send_message(
+            if message_id:
+                try:
+                    await self.application.bot.edit_message_text(
+                        chat_id=self.channel_chat_id, message_id=message_id, text=text,
+                        parse_mode=ParseMode.HTML, disable_web_page_preview=True,
+                    )
+                    self.exterior_last_message_id = message_id
+                    return True
+                except TelegramError as error:
+                    detail = str(error).lower()
+                    if 'message is not modified' in detail:
+                        self.exterior_last_message_id = message_id
+                        return True
+                    if not any(value in detail for value in ['message to edit not found', 'message_id_invalid', 'message identifier is not specified']):
+                        raise
+            sent = await self.application.bot.send_message(
                 chat_id=self.channel_chat_id,
                 text=text,
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
                 disable_notification=False,
             )
+            self.exterior_last_message_id = sent.message_id
             return True
+        except RetryAfter as exc:
+            wait = exc.retry_after
+            seconds = wait.total_seconds() if hasattr(wait,'total_seconds') else float(wait)
+            self.exterior_retry_at = time.monotonic()+max(1,seconds)
+            self.channel_error = 'Telegram solicitou uma pausa temporária nos boletins do exterior.'
+            return False
         except TelegramError as exc:
             if "administrator rights" in str(exc).lower():
                 self.channel_ready = False
@@ -1295,7 +1320,7 @@ class ElectionBot:
         history: bool = False,
     ) -> None:
         try:
-            poll = await self.g1_polls.fetch(office, scope, 1, institute)
+            poll = await self.g1_polls.fetch(office, scope, self.settings.round_for_office(office), institute)
             text = format_g1_history(poll) if history else format_g1_poll(poll)
             external_chat = getattr(getattr(message, "chat", None), "type", "private") != "private"
             markup = poll_keyboard(self.settings, poll, external_chat=external_chat)
@@ -1417,7 +1442,7 @@ class ElectionBot:
             await update.effective_message.reply_text("Comando restrito aos administradores configurados.")
             return
         try:
-            poll = await self.g1_polls.fetch("presidente", "br", 1, "datafolha", force=True)
+            poll = await self.g1_polls.fetch("presidente", "br", self.settings.election_round, "datafolha", force=True)
             ok = await self.publish_g1_poll(
                 poll,
                 headline="BOLETIM • ÚLTIMA PESQUISA DISPONÍVEL",

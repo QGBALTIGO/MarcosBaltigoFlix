@@ -39,12 +39,12 @@ async def g1_poll_loop(
 
     tz = ZoneInfo(settings.timezone)
     daily_institute_key = settings.g1_daily_institute.strip().lower()
-    daily_key = f"g1:daily:presidente:{daily_institute_key}"
+    daily_key = f"g1:daily:r{settings.election_round}:presidente:{daily_institute_key}"
     layout_key = "g1:daily:layout_version"
     layout_version = "rich-table-v1"
     specs = [
-        ("presidente", "br", 1, "datafolha"),
-        ("presidente", "br", 1, "quaest"),
+        ("presidente", "br", settings.election_round, "datafolha"),
+        ("presidente", "br", settings.election_round, "quaest"),
     ]
     last_monitor = 0.0
 
@@ -60,7 +60,7 @@ async def g1_poll_loop(
                 needs_layout_refresh = current_layout != layout_version
                 if daily_state != today or needs_layout_refresh:
                     poll = await client.fetch(
-                        "presidente", "br", 1, settings.g1_daily_institute, force=True
+                        "presidente", "br", settings.election_round, settings.g1_daily_institute, force=True
                     )
                     headline = (
                         "PESQUISA ELEITORAL • PRESIDENTE"
@@ -71,7 +71,7 @@ async def g1_poll_loop(
                         await storage.set_state(daily_key, today)
                         await storage.set_state(layout_key, layout_version)
                         await storage.set_state(
-                            f"g1:fingerprint:presidente:br:{daily_institute_key}",
+                            f"g1:fingerprint:r{settings.election_round}:presidente:br:{daily_institute_key}",
                             poll.fingerprint,
                         )
                         log.info(
@@ -93,7 +93,7 @@ async def g1_poll_loop(
         if time.monotonic() - last_monitor >= interval:
             last_monitor = time.monotonic()
             for office, scope, round_, institute in specs:
-                state_key = f"g1:fingerprint:{office}:{scope}:{institute}"
+                state_key = f"g1:fingerprint:r{settings.election_round}:{office}:{scope}:{institute}"
                 try:
                     poll = await client.fetch(
                         office, scope, round_, institute, force=True
