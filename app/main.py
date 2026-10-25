@@ -16,6 +16,7 @@ from .candidates import CandidateDirectory
 from .config import get_settings
 from .g1_polls import G1PollClient
 from .exterior import ExteriorBulletinClient, exterior_bulletin_loop
+from .exterior_official import OfficialExteriorClient
 from .monitor import ElectionMonitorState, monitor_loop
 from .poll_monitor import g1_poll_loop
 from .result_service import ResultService, is_pre_election
@@ -38,7 +39,9 @@ results = ResultService(settings, tse, candidates)
 election_bot = ElectionBot(settings, results, storage, g1_polls)
 stop_event = asyncio.Event()
 monitor_state = ElectionMonitorState()
-exterior_client = ExteriorBulletinClient(settings)
+exterior_client = (OfficialExteriorClient(settings, storage)
+                   if settings.election_round == 2 and not settings.is_simulation
+                   else ExteriorBulletinClient(settings))
 monitor_task: asyncio.Task | None = None
 g1_task: asyncio.Task | None = None
 exterior_task: asyncio.Task | None = None
@@ -159,10 +162,18 @@ async def health():
         "channel": election_bot.channel_health(),
         "exterior_bu_enabled": settings.exterior_bu_enabled,
         "exterior_bu_poll_seconds": settings.exterior_bu_poll_seconds,
+        "exterior": getattr(exterior_client, 'health', None),
         "g1_daily_enabled": settings.g1_daily_enabled,
         "g1_daily_time": f"{settings.g1_daily_hour:02d}:{settings.g1_daily_minute:02d}",
         "timezone": settings.timezone,
     }
+
+
+@app.get('/api/exterior')
+async def api_exterior():
+    if not isinstance(exterior_client, OfficialExteriorClient):
+        return {'round':settings.election_round, 'localities':[]}
+    return exterior_client.snapshot()
 
 
 @app.get("/api/result")

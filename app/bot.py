@@ -658,13 +658,14 @@ class ElectionBot:
             return False
         assert self.channel_chat_id is not None
         try:
-            await self.application.bot.send_message(
+            sent = await self.application.bot.send_message(
                 chat_id=self.channel_chat_id,
                 text=text,
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
                 disable_notification=False,
             )
+            self.exterior_last_message_id = sent.message_id
             return True
         except TelegramError as exc:
             if "administrator rights" in str(exc).lower():

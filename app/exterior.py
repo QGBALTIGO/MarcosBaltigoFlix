@@ -56,12 +56,24 @@ class ExteriorCountryResult:
     candidates: tuple[ExteriorCandidate, ...]
     source_label: str
     source_url: str
+    locality_code: str = ""
+    round: int = 1
+    sections_counted: int = 0
+    sections_total: int = 0
+    blank: int = 0
+    null: int = 0
+    official_bu: bool = False
 
     @property
     def fingerprint(self) -> str:
         raw = json.dumps(
             {
                 "country": self.country,
+                "round": self.round,
+                "locality": self.locality_code,
+                "coverage": [self.sections_counted, self.sections_total],
+                "blank": self.blank,
+                "null": self.null,
                 "candidates": [
                     (c.name, c.party, c.votes, c.percentage)
                     for c in self.candidates
@@ -260,6 +272,17 @@ def format_exterior_channel_message(item: ExteriorCountryResult) -> str:
             f"{votes_text} votos{pct}"
         )
 
+    if item.official_bu:
+        return (
+            f"🌍 <b>Exterior • {html_lib.escape(item.country)}</b>\n"
+            f"<b>{item.round}º turno · Presidente</b>\n\n"
+            + "\n".join(rows)
+            + f"\n\nBUs conferidos: <b>{item.sections_counted}/{item.sections_total}</b> seções principais."
+            + f"\nBrancos: {item.blank} · Nulos: {item.null}"
+            + '\n<i>Recorte dos boletins oficiais; não é a totalização nacional.</i>'
+            + f'\n<a href="{html_lib.escape(item.source_url, quote=True)}">Fonte: TSE · boletins de urna</a>'
+        )
+
     return (
         f"🌍 <b>Exterior • {html_lib.escape(item.country)}</b>\n\n"
         "<i>Boletins de urna já divulgados. Este recorte ainda não é a "
@@ -328,11 +351,14 @@ async def exterior_bulletin_loop(
     while not stop_event.is_set():
         try:
             now = datetime.now(BRASILIA)
-            if now.date() in ELECTION_DATES_2026:
+            official_runoff = settings.election_round == 2 and not settings.is_simulation
+            active_date = now.date() in ({date(2026, 10, 25), date(2026, 10, 26)} if official_runoff else ELECTION_DATES_2026)
+            if active_date:
                 items = await client.fetch()
                 if await bot.check_channel_ready():
-                    for item in items[:20]:
-                        key = "exterior:bu:" + hashlib.sha1(
+                    posted = 0
+                    for item in items:
+                        key = f"exterior:bu:r{settings.election_round}:" + hashlib.sha1(
                             item.country.casefold().encode("utf-8")
                         ).hexdigest()
                         previous = await storage.get_state(key)
@@ -342,7 +368,17 @@ async def exterior_bulletin_loop(
                             format_exterior_channel_message(item)
                         ):
                             await storage.set_state(key, item.fingerprint)
+                            await storage.set_state('exterior:last_post', json.dumps({
+                                'at': now.isoformat(), 'locality': item.country,
+                                'round': item.round, 'official_bu': item.official_bu,
+                                'sections': item.sections_counted,
+                                'message_id': getattr(bot, 'exterior_last_message_id', None),
+                            }, ensure_ascii=False))
+                            log.info('Boletim exterior publicado: %s; turno=%s; secoes=%s/%s', item.country, item.round, item.sections_counted, item.sections_total)
+                            posted += 1
                             await asyncio.sleep(0.35)
+                            if posted >= 12:
+                                break
         except Exception:
             log.exception("Falha no monitor de boletins do exterior")
 
